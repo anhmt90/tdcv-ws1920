@@ -41,10 +41,11 @@ descriptors=cell(num_files,1);
 % Place matches between new SIFT features and SIFT features from the SIFT
 % model here
 sift_matches=cell(num_files,1);
+scores=cell(num_files,1);
 
 % Default threshold for SIFT keypoints matching: 1.5 
 % When taking higher value, match is only recognized if similarity is very high
-threshold_ubcmatch = 1.5; 
+threshold_ubcmatch = 2.5; 
 
 for i=1:num_files
     fprintf('Calculating and matching sift features for image: %d \n', i)
@@ -58,7 +59,7 @@ for i=1:num_files
     [keypoints{i}, descriptors{i}] = vl_sift(img);
     
     % Match features between SIFT model and SIFT features from new image
-    sift_matches{i} = vl_ubcmatch(descriptors{i}, model.descriptors, threshold_ubcmatch);
+    [sift_matches{i} , scores{i}]= vl_ubcmatch(descriptors{i}, model.descriptors, threshold_ubcmatch);
     
 end
 
@@ -74,14 +75,19 @@ save('sift_matches.mat','sift_matches')
 
 %% TEST MARIA Plot the matched points.
 % 
-% % Select the test image you want to visualize.
-% image = 1;
-% 
-% % Plot the image and the matched points on top.
-% imshow (char(Filenames(image)));
-% hold on;
-% plot (keypoints{image}(1, sift_matches{image}(1,:)), keypoints{image}(2, sift_matches{image}(1,:)), 'r*');
-% 
+% Select the test image you want to visualize.
+
+for h=1:num_files
+    figure
+    % Plot the image and the matched points on top.
+    imshow (char(Filenames(h)));
+    hold on;
+    % Visualize the matched points of the image
+    vl_plotframe(keypoints{h}(:,sift_matches{h}(1,:)), 'linewidth',2);
+    %plot (keypoints{h}(1, sift_matches{h}(1,:)), keypoints{h}(2, sift_matches{h}(1,:)), 'r*');
+    hold off;
+end
+
 
 %% PnP and RANSAC 
 % Implement the RANSAC algorithm featuring also the following arguments:
@@ -109,8 +115,8 @@ best_inliers_set = cell(num_files, 1);
 % to avoid eliminating outlier correspondences through the integrated MSAC-estimation
 max_reproj_err = 1000;
 
-ransac_iterations = 100; %input('Please select the number of iterations:','s');  
-threshold_ransac = 3; %input('Please select the threshold for RANSAC method:','s');
+ransac_iterations = 1000; %input('Please select the number of iterations:','s');  
+threshold_ransac = 4; %input('Please select the threshold for RANSAC method:','s');
 
 for i = 1:num_files
     fprintf('Running PnP+RANSAC for image: %d \n', i)
@@ -133,37 +139,30 @@ for i = 1:num_files
         
         [cam_in_world_orientations(:,:,i),cam_in_world_locations(:,:,i),inlierIdx,status] = estimateWorldCameraPose(image_points, world_points, camera_params, 'MaxReprojectionError', max_reproj_err);
 
-        %%% Fit the model of a line of those 4 points on the image  %%%
-        x = image_points(:,1);
-        y = image_points(:,2);
-        
-        % polyfit gives the coefficient of the line fitted for those 4
-        % points.
-        % the line equation is p(x) = p1*x + p2 which is the same to 
-        % y = ax + c --> ax - y + c = 0  (b = -1) 
-        % a = p(1)
-        % b = -1
-        % c = p(2)
-        p = polyfit(x,y,1);
-        
-        % In case it is needed, to calculate the y points of that line we
-        % can use polyval 
-        % y1 = polyval(p,x);
-        % Line define by those 4 points ---> x & y1
-
-        %%% Get the 2D coordinates of all matches %%%
+        %%% Get the indexes of all matches %%%
         all_matchedPoints_2Dimage = sift_matches{i}(1,:);
+        all_matchedPoints_3Dmodel = sift_matches{i}(2,:);
         
         % Get 2D coordinates of all matches
         all_image_points = [keypoints{i}(1,all_matchedPoints_2Dimage); keypoints{i}(2,all_matchedPoints_2Dimage)]';
+        % Get 3D coordinates of all matches
+        all_model_points = model.coord3d(all_matchedPoints_3Dmodel,:);
         
-        % Calculate the distance of all matches in 2D image to the line
-        % fitted to the 4 randomly selected points
+        % Project all of the 3D points from the matches into the 2D image
+        % using the obtained orientation and translation transformations
+        reprojected_points = project3d2image(all_model_points',camera_params, cam_in_world_orientations(:,:,i), cam_in_world_locations(:, :, i));
+        reprojected_points = reprojected_points';
+
+        % Calculate the error of reprojecting the points, to determine the
+        % number of inliers and the number of outliers. 
+        % The error of reprojection is the euclidean distance between the
+        % points in the image and the reprojected points. 
+        distance_reprojection = pdist2(reprojected_points, all_image_points);
         
-        % To calculate the distance use the formula
-        % d(line = ax+by+c = 0 ,point = (x0,y0))= abs(a*x0 + b*y0 +c)/sqrt(a^2 +b^2)
-        d = abs(p(1).*all_image_points(:,1) - all_image_points(:,2) + p(2)) ./ sqrt(p(1).^2 + 1);
-        
+        % We take the diagonal because pdist2 gets the distance between all
+        % points to each other, and we only need each point to eachself.
+        d = diag(distance_reprojection);
+         
         % If there is any point where the distance is smaller than the threshold selected
         if any(d < threshold_ransac)
             
@@ -177,6 +176,8 @@ for i = 1:num_files
            if j == 1
                
                max_num_inliers = num_inliers;
+               % save the position of the best inliers with respect to the sift_matches 
+               best_inliers_set{i} = pos_inliers;
            
            % If we are not in the first iteration, check if the number of inliers founds is
            % higher than the previous maximum.
@@ -221,7 +222,7 @@ end
 edges = [[1, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 7]
     [2, 4, 5, 3, 6, 4, 7, 8, 6, 8, 7, 8]];
 
-for i=1:5
+for i=1:num_files
     
     figure()
     imshow(char(Filenames(i)), 'InitialMagnification', 'fit');
