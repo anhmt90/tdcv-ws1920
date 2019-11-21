@@ -5,9 +5,9 @@ addpath('helper_functions')
 
 %% Setup
 % path to the images folder
-path_img_dir = '../data/detection';
+path_img_dir = 'data/detection';
 % path to object ply file
-object_path = '../data/teabox.ply';
+object_path = 'data/teabox.ply';
 
 % Read the object's geometry 
 % Here vertices correspond to object's corners and faces are triangles
@@ -44,8 +44,8 @@ sift_matches=cell(num_files,1);
 scores=cell(num_files,1);
 
 % Default threshold for SIFT keypoints matching: 1.5 
-% When taking higher value, match is only recognized if similarity is very high
-threshold_ubcmatch = 2.5; 
+% % When taking higher value, match is only recognized if similarity is very high
+threshold_ubcmatch = 1.5; 
 
 for i=1:num_files
     fprintf('Calculating and matching sift features for image: %d \n', i)
@@ -112,6 +112,10 @@ cam_in_world_orientations = zeros(3,3,num_files);
 cam_in_world_locations = zeros(1,3,num_files);
 best_inliers_set = cell(num_files, 1);
 
+init_world_locations = zeros(1,3,num_files);
+init_world_orientations = zeros(3,3,num_files);
+
+
 % to avoid eliminating outlier correspondences through the integrated MSAC-estimation
 max_reproj_err = 1000;
 
@@ -137,7 +141,7 @@ for i = 1:num_files
         image_points = [keypoints{i}(1,matched_points_image2D); keypoints{i}(2,matched_points_image2D)]';
         world_points = model.coord3d(matched_points_model3D,:);
         
-        [cam_in_world_orientations(:,:,i),cam_in_world_locations(:,:,i),inlierIdx,status] = estimateWorldCameraPose(image_points, world_points, camera_params, 'MaxReprojectionError', max_reproj_err);
+        [init_world_orientations(:,:,i),init_world_locations(:,:,i),inlierIdx,status] = estimateWorldCameraPose(image_points, world_points, camera_params, 'MaxReprojectionError', max_reproj_err);
 
         %%% Get the indexes of all matches %%%
         all_matchedPoints_2Dimage = sift_matches{i}(1,:);
@@ -150,7 +154,7 @@ for i = 1:num_files
         
         % Project all of the 3D points from the matches into the 2D image
         % using the obtained orientation and translation transformations
-        reprojected_points = project3d2image(all_model_points',camera_params, cam_in_world_orientations(:,:,i), cam_in_world_locations(:, :, i));
+        reprojected_points = project3d2image(all_model_points',camera_params, init_world_orientations(:,:,i), init_world_locations(:, :, i));
         reprojected_points = reprojected_points';
 
         % Calculate the error of reprojecting the points, to determine the
@@ -178,7 +182,9 @@ for i = 1:num_files
                max_num_inliers = num_inliers;
                % save the position of the best inliers with respect to the sift_matches 
                best_inliers_set{i} = pos_inliers;
-           
+               cam_in_world_orientations(:,:,i) = init_world_orientations(:,:,i);
+               cam_in_world_locations(:,:,i) = init_world_locations(:,:,i);
+               
            % If we are not in the first iteration, check if the number of inliers founds is
            % higher than the previous maximum.
            elseif num_inliers > max_num_inliers
