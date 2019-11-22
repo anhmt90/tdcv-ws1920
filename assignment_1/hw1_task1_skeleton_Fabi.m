@@ -2,7 +2,7 @@ clear
 clc
 close all
 addpath('helper_functions')
-%run('VLFEATROOT/toolbox/vl_setup')
+run('../libs/vlfeat-0.9.21/toolbox/vl_setup')
 
 %% Setup
 % path to the images folder
@@ -13,6 +13,7 @@ object_path = 'data/teabox.ply';
 % Read the object's geometry 
 % Here vertices correspond to object's corners and faces are triangles
 [vertices, faces] = read_ply(object_path);
+faces = faces + 1;
 
 % Coordinate System is right handed and placed at lower left corner of tea
 % box. Using coordinates of teabox model, vertex numbering is visualized in
@@ -28,13 +29,16 @@ title('Vertices numbering')
 % will result in NaN values in the output array
 % Don't forget to filter NaNs later
 num_points = 8;
-% labeled_points = mark_image(path_img_dir, num_points);
-
-
-% Save labeled points and load them when you rerun the code to save time
-% save('labeled_points.mat', 'labeled_points')
-load('labeled_points.mat')
-all_image_points = labeled_points;
+relabel = 0;
+ 
+if isfile('labeled_points.mat') && ~relabel
+    load('labeled_points.mat');
+else
+    labeled_points = mark_image(path_img_dir, num_points);
+    
+    % Save labeled points and load them when you rerun the code to save time
+    save('labeled_points.mat', 'labeled_points');
+end
 
 %% Get all filenames in images folder
 
@@ -72,7 +76,7 @@ principalPoint = [1841.68855 1235.23369];
 imageSize = [2456 3680];
 camera_params = cameraIntrinsics(focalLength,principalPoint, imageSize);
 
-max_reproj_err = 5;
+max_reproj_err = 10000;
 
 % iterate over the images
 for i=1:num_files
@@ -103,26 +107,29 @@ visualise_cameras(vertices, edges, cam_in_world_orientations, cam_in_world_locat
 % download vlfeat (http://www.vlfeat.org/download.html) and unzip it somewhere
 % Don't forget to add vlfeat folder to MATLAB path
 
-% Place SIFT keypoints and corresponding descriptors for all images here
-keypoints = cell(num_files,1); 
-descriptors = cell(num_files,1); 
-% 
-for i=1:length(Filenames)
-    fprintf('Calculating sift features for image: %d \n', i)
-    % read img, convert to grayscale and single-precision
-    img = single(rgb2gray(imread(Filenames{i})));
 
-%    TODO: Prepare the image (img) for vl_sift() function
-    [keypoints{i}, descriptors{i}] = vl_sift(img) ;
+
+recalc_sift = 0;
+ 
+if isfile('sift_descriptors.mat') && isfile('sift_keypoints.mat') && ~recalc_sift
+    load('sift_descriptors.mat');
+    load('sift_keypoints.mat');
+else
+    % Place SIFT keypoints and corresponding descriptors for all images here
+    keypoints = cell(num_files,1); 
+    descriptors = cell(num_files,1);
+    for i=1:length(Filenames)
+        fprintf('Calculating sift features for image: %d \n', i)
+        % read img, convert to grayscale and single-precision
+        img = single(rgb2gray(imread(Filenames{i})));
+
+%       TODO: Prepare the image (img) for vl_sift() function
+        [keypoints{i}, descriptors{i}] = vl_sift(img) ;
+    end
+    
+    save('sift_descriptors.mat', 'descriptors')
+    save('sift_keypoints.mat', 'keypoints')
 end
-% 
-% % When you rerun the code, you can load sift features and descriptors to
-% 
-% % Save sift features and descriptors and load them when you rerun the code to save time
-save('sift_descriptors.mat', 'descriptors')
-save('sift_keypoints.mat', 'keypoints')
-% load('sift_descriptors.mat');
-% load('sift_keypoints.mat');
 
 
 % Visualisation of sift features for the first image
@@ -152,21 +159,20 @@ hold off;
 % Leave the value of 1000 to retain reasonable computational time for debugging
 % In order to contruct the final SIFT model that will be used later, consider
 % increasing this value to get more SIFT points in your model
-num_samples=10000;
+num_samples= 5000;  %14800;
 size_total_sift_points=num_samples*num_files;
 
 % Visualise cameras and model SIFT keypoints
-fig = visualise_cameras(vertices, edges, cam_in_world_orientations, cam_in_world_locations);
-hold on
+% fig = visualise_cameras(vertices, edges, cam_in_world_orientations, cam_in_world_locations);
+% hold on
 
 % Place model's SIFT keypoints coordinates and descriptors here
 model.coord3d = [];
 model.descriptors = [];
-
+model_keypoints = [];
 
 for i=1:num_files
-%   Get verticies in each image that are not visible 
-    index = find(isnan(labeled_points(:,1,i)));
+    
 %     Randomly select a number of SIFT keypoints
     perm = randperm(size(keypoints{i},2));
     sel = perm(1:num_samples);
@@ -178,31 +184,55 @@ for i=1:num_files
     orig = -inv(Q)*q; % this corresponds to C
 %    Section to be deleted ends here
 
+    % Get index of verticies in each image that are not visible 
+    nan_index = find(isnan(labeled_points(:,1,i)));
+    
+    % Reinitialize the model_keypoints variable for each image
+    model_keypoints = [];
+    
     for j=1:num_samples
         
         % select [x y 1] for random selected keypoint based on index sel(j)
         point = [keypoints{i}(1, sel(j)) keypoints{i}(2, sel(j)) 1];
         % calculate ray from camera center through random selected keypoint
-        ray_m = orig + inv(Q)*point.';
+        lambda = norm(inv(Q)*point.');
+        ray_m = orig + lambda * inv(Q)*point.';
+        
+        
         % iterate through faces
         for k=1:size(faces)
            % Skip iteration for not visible faces
-           if(any(ismember(index, faces(k, :)))) 
+           if(any(ismember(nan_index, faces(k, :)))) 
                continue;
            end
            % calculate intersection ray/face
-           [intersect, t, u, v, xcoor] = TriangleRayIntersection(orig', ray_m',...
-                vertices(faces(k, 1)+1, :), vertices(faces(k, 2)+1, :), vertices(faces(k, 3)+1, :));
+           [intersect, t, u, v, xcoor] = TriangleRayIntersection(orig', (ray_m - orig)',...
+                vertices(faces(k, 1), :), vertices(faces(k, 2), :), vertices(faces(k, 3), :), ...
+                'planeType','one sided');
             % save 3d intersection coordinates and descriptors of keypoint
             if intersect ~= 0
+                model_keypoints = [model_keypoints, keypoints{i,1}(:,sel(j))];
+%                 scale = keypoints{i,1}(3,sel(j));
+%                 sift_coord = scale * [keypoints{i,1}(1,sel(j)); keypoints{i,1}(2,sel(j))];
+%                 model_keypoints = [model_keypoints, sift_coord];
+
                 model.coord3d = [model.coord3d; xcoor];
                 model.descriptors = [model.descriptors descriptors{i}(:, sel(j))];
                 %disp(xcoor);
             end
         end
-    end       
+    end
+    % Images to check if the points that are said to belong to the model
+    % are inside the box in each image
+    figure
+    imshow(char(Filenames(i)), 'InitialMagnification', 'fit');
+    hold on;
+    scatter(model_keypoints(1,:),model_keypoints(2,:),'bo');
+    hold off
 end
 
+
+figure
 scatter3(model.coord3d(:,1), model.coord3d(:,2), model.coord3d(:,3), 'o', 'b');
 hold off
 xlabel('x');

@@ -5,9 +5,9 @@ addpath('helper_functions')
 
 %% Setup
 % path to the images folder
-path_img_dir = '../data/detection';
+path_img_dir = 'data/detection';
 % path to object ply file
-object_path = '../data/teabox.ply';
+object_path = 'data/teabox.ply';
 
 % Read the object's geometry 
 % Here vertices correspond to object's corners and faces are triangles

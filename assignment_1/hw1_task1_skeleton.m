@@ -1,8 +1,10 @@
+%% Init environment
 clear
 clc
 close all
 addpath('helper_functions')
 
+% run('../libs/vlfeat-0.9.21/toolbox/vl_setup')
 %% Setup
 % path to the images folder
 path_img_dir = 'data/init_texture';
@@ -154,7 +156,7 @@ model.descriptors = [];
 
 for i=1:num_files
     
-%     Randomly select a number of SIFT keypoints
+%     Randomly select a num_samples of SIFT keypoints
     perm = randperm(size(keypoints{i},2)) ;
     sel = perm(1:num_samples);
     

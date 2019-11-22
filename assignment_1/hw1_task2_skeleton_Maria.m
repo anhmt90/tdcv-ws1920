@@ -35,44 +35,52 @@ num_files = length(Filenames);
 %% Match SIFT features of new images to the SIFT model with features computed in the task 1
 % You should use VLFeat function vl_ubcmatch()
 
-% Place SIFT keypoints and descriptors of new images here
-keypoints=cell(num_files,1);
-descriptors=cell(num_files,1);
-% Place matches between new SIFT features and SIFT features from the SIFT
-% model here
-sift_matches=cell(num_files,1);
-scores=cell(num_files,1);
-
-% Default threshold for SIFT keypoints matching: 1.5 
-% % When taking higher value, match is only recognized if similarity is very high
-threshold_ubcmatch = 1.5; 
-
-for i=1:num_files
-    fprintf('Calculating and matching sift features for image: %d \n', i)
-    
-    %     TODO: Prepare the image (img) for vl_sift() function
-    I = imread(Filenames{i});
-    img = single(rgb2gray(I));
-    
-    % Get sift keypoints and descriptors for each of the images inside the
-    % detection folder
-    [keypoints{i}, descriptors{i}] = vl_sift(img);
-    
-    % Match features between SIFT model and SIFT features from new image
-    [sift_matches{i} , scores{i}]= vl_ubcmatch(descriptors{i}, model.descriptors, threshold_ubcmatch);
-    
+rerun_sift = 0;
+sift_files = ['detection_keypoints.mat', 'detection_descriptors.mat', 'sift_matches.mat', 'sift_scores.mat'];
+all_files_exist = 1;
+for i=1:size(sift_files)
+    all_files_exist = all_files_exist && isfile(sift_files(i));
 end
 
-
-% Save sift features, descriptors and matches and load them when you rerun the code to save time%save('sift_matches.mat', 'sift_matches');
-save('detection_keypoints.mat', 'keypoints')
-save('detection_descriptors.mat', 'descriptors')
-save('sift_matches.mat','sift_matches')
-
-%load('sift_matches.mat')
-%load('detection_keypoints.mat')
-%load('detection_descriptors.mat')
-
+if all_files_exist && ~rerun_sift
+    load('sift_matches.mat')
+    load('detection_keypoints.mat')
+    load('detection_descriptors.mat')
+    load('sift_scores.mat')
+else
+    % Place SIFT keypoints and descriptors of new images here
+    keypoints=cell(num_files,1);
+    descriptors=cell(num_files,1);
+    % Place matches between new SIFT features and SIFT features from the SIFT
+    % model here
+    sift_matches=cell(num_files,1);
+    sift_scores=cell(num_files,1);
+    
+    % Default threshold for SIFT keypoints matching: 1.5
+    % % When taking higher value, match is only recognized if similarity is very high
+    threshold_ubcmatch = 1.5;
+    
+    for i=1:num_files
+        fprintf('Calculating and matching sift features for image: %d \n', i)
+        
+        %     TODO: Prepare the image (img) for vl_sift() function
+        I = imread(Filenames{i});
+        img = single(rgb2gray(I));
+        
+        % Get sift keypoints and descriptors for each of the images inside the
+        % detection folder
+        [keypoints{i}, descriptors{i}] = vl_sift(img);
+        
+        % Match features between SIFT model and SIFT features from new image
+        [sift_matches{i} , sift_scores{i}]= vl_ubcmatch(descriptors{i}, model.descriptors, threshold_ubcmatch);
+    
+    end
+    % Save sift features, descriptors and matches and load them when you rerun the code to save time%save('sift_matches.mat', 'sift_matches');
+    save('detection_keypoints.mat', 'keypoints')
+    save('detection_descriptors.mat', 'descriptors')
+    save('sift_matches.mat','sift_matches')
+    save('sift_scores.mat','sift_scores')
+end
 %% TEST MARIA Plot the matched points.
 % 
 % Select the test image you want to visualize.
@@ -177,6 +185,7 @@ for i = 1:num_files
            
            % If it is the first iteration of one image, we set the maximum of inliers as
            % the first ones.
+           max_num_inliers = 0;
            if j == 1
                
                max_num_inliers = num_inliers;
