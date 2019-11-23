@@ -212,9 +212,6 @@ for i=1:num_files
             % save 3d intersection coordinates and descriptors of keypoint
             if intersect ~= 0
                 model_keypoints = [model_keypoints, keypoints{i,1}(:,sel(j))];
-%                 scale = keypoints{i,1}(3,sel(j));
-%                 sift_coord = scale * [keypoints{i,1}(1,sel(j)); keypoints{i,1}(2,sel(j))];
-%                 model_keypoints = [model_keypoints, sift_coord];
 
                 model.coord3d = [model.coord3d; xcoor];
                 model.descriptors = [model.descriptors descriptors{i}(:, sel(j))];

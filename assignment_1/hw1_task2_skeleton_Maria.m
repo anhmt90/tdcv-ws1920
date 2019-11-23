@@ -36,17 +36,20 @@ num_files = length(Filenames);
 % You should use VLFeat function vl_ubcmatch()
 
 rerun_sift = 0;
-sift_files = ['detection_keypoints.mat', 'detection_descriptors.mat', 'sift_matches.mat', 'sift_scores.mat'];
+sift_files = ["detection_keypoints.mat", "detection_descriptors.mat", "sift_matches.mat", "sift_scores.mat"];
 all_files_exist = 1;
-for i=1:size(sift_files)
+for i=1:size(sift_files,2)
     all_files_exist = all_files_exist && isfile(sift_files(i));
 end
 
 if all_files_exist && ~rerun_sift
-    load('sift_matches.mat')
-    load('detection_keypoints.mat')
-    load('detection_descriptors.mat')
-    load('sift_scores.mat')
+    for i=1:size(sift_files,2)
+        load(sift_files(i));
+    end
+%     load('sift_matches.mat')
+%     load('detection_keypoints.mat')
+%     load('detection_descriptors.mat')
+%     load('sift_scores.mat')
 else
     % Place SIFT keypoints and descriptors of new images here
     keypoints=cell(num_files,1);
@@ -84,7 +87,6 @@ end
 %% TEST MARIA Plot the matched points.
 % 
 % Select the test image you want to visualize.
-
 for h=1:num_files
     figure
     % Plot the image and the matched points on top.
@@ -95,6 +97,7 @@ for h=1:num_files
     %plot (keypoints{h}(1, sift_matches{h}(1,:)), keypoints{h}(2, sift_matches{h}(1,:)), 'r*');
     hold off;
 end
+
 
 
 %% PnP and RANSAC 
@@ -129,8 +132,9 @@ max_reproj_err = 1000;
 
 ransac_iterations = 1000; %input('Please select the number of iterations:','s');  
 threshold_ransac = 4; %input('Please select the threshold for RANSAC method:','s');
+max_num_inliers = 0;
 
-for i = 1:num_files
+for i = 20:num_files
     fprintf('Running PnP+RANSAC for image: %d \n', i)
    
 %     TODO: Implement the RANSAC algorithm here
@@ -185,7 +189,6 @@ for i = 1:num_files
            
            % If it is the first iteration of one image, we set the maximum of inliers as
            % the first ones.
-           max_num_inliers = 0;
            if j == 1
                
                max_num_inliers = num_inliers;
