@@ -2,7 +2,7 @@ clear
 clc
 close all
 addpath('helper_functions')
-run('../libs/vlfeat-0.9.21/toolbox/vl_setup')
+%run('../libs/vlfeat-0.9.21/toolbox/vl_setup')
 
 %% Setup
 % path to the images folder
@@ -159,7 +159,7 @@ hold off;
 % Leave the value of 1000 to retain reasonable computational time for debugging
 % In order to contruct the final SIFT model that will be used later, consider
 % increasing this value to get more SIFT points in your model
-num_samples= 5000;  %14800;
+num_samples= 14000;  %14800;
 size_total_sift_points=num_samples*num_files;
 
 % Visualise cameras and model SIFT keypoints
