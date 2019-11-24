@@ -116,121 +116,132 @@ end
 % For PnP you can use estimateWorldCameraPose() function
 % but only use it with 4 points and set the 'MaxReprojectionError' to the
 % value of 10000 so that all these 4 points are considered to be inliers
+rerun_ransac = 0;
+ransac_files = ["Correct_Orientations.mat","Correct_Locations.mat","Best_Inliers.mat"];
+all_files_exist = 1;
+for i=1:size(ransac_files,2)
+    all_files_exist = all_files_exist && isfile(ransac_files(i));
+end
 
-% Place camera orientations, locations and best inliers set for every image here
-cam_in_world_orientations = zeros(3,3,num_files);
-cam_in_world_locations = zeros(1,3,num_files);
-best_inliers_set = cell(num_files, 1);
-
-init_world_locations = zeros(1,3,num_files);
-init_world_orientations = zeros(3,3,num_files);
-
-
-% to avoid eliminating outlier correspondences through the integrated MSAC-estimation
-max_reproj_err = 10000;
-
-ransac_iterations = 2000; %input('Please select the number of iterations:','s');
-threshold_ransac = 6; %input('Please select the threshold for RANSAC method:','s');
-max_num_inliers = 0;
-
-for i = 1:num_files
-    fprintf('Running PnP+RANSAC for image: %d \n', i)
+if all_files_exist && ~rerun_ransac
+    for i=1:size(ransac_files,2)
+        load(ransac_files(i));
+    end
+else
+    % Place camera orientations, locations and best inliers set for every image here
+    cam_in_world_orientations = zeros(3,3,num_files);
+    cam_in_world_locations = zeros(1,3,num_files);
+    best_inliers_set = cell(num_files, 1);
     
-    %     TODO: Implement the RANSAC algorithm here
-    for j = 1:ransac_iterations
+    init_world_locations = zeros(1,3,num_files);
+    init_world_orientations = zeros(3,3,num_files);
+    
+    
+    % to avoid eliminating outlier correspondences through the integrated MSAC-estimation
+    max_reproj_err = 10000;
+    
+    ransac_iterations = 2000; %input('Please select the number of iterations:','s');
+    threshold_ransac = 6; %input('Please select the threshold for RANSAC method:','s');
+    max_num_inliers = 0;
+    
+    for i = 1:num_files
+        fprintf('Running PnP+RANSAC for image: %d \n', i)
         
-        perm = randperm(size(sift_matches{i},2));
-        % We want to take 4 random points each time
-        sel = perm(1:4);
-        
-        % Get those 4 random points from the matches between the model and the 2D image.
-        matched_points_image2D = sift_matches{i}(1,sel);
-        matched_points_model3D = sift_matches{i}(2,sel);
-        
-        % Get the 2D and 3D coordinates for the 4 randomly selected matches
-        % and estimate the pose using PnP
-        image_points = [keypoints{i}(1,matched_points_image2D); keypoints{i}(2,matched_points_image2D)]';
-        world_points = model.coord3d(matched_points_model3D,:);
-        
-        [init_world_orientations(:,:,i),init_world_locations(:,:,i),inlierIdx,status] = estimateWorldCameraPose(image_points, world_points, camera_params,...
-            'MaxReprojectionError', max_reproj_err,'MaxNumTrials',10,...
-        'Confidence',0.0000001);
-        
-        %%% Get the indexes of all matches %%%
-        all_matchedPoints_2Dimage = sift_matches{i}(1,:);
-        all_matchedPoints_3Dmodel = sift_matches{i}(2,:);
-        
-        % Get 2D coordinates of all matches
-        all_image_points = [keypoints{i}(1,all_matchedPoints_2Dimage); keypoints{i}(2,all_matchedPoints_2Dimage)]';
-        % Get 3D coordinates of all matches
-        all_model_points = model.coord3d(all_matchedPoints_3Dmodel,:);
-        
-        % Project all of the 3D points from the matches into the 2D image
-        % using the obtained orientation and translation transformations
-        reprojected_points = project3d2image(all_model_points',camera_params, init_world_orientations(:,:,i), init_world_locations(:, :, i));
-        reprojected_points = reprojected_points';
-        
-        % Calculate the error of reprojecting the points, to determine the
-        % number of inliers and the number of outliers.
-        % The error of reprojection is the euclidean distance between the
-        % points in the image and the reprojected points.
-        distance_reprojection = pdist2(reprojected_points, all_image_points);
-        
-        % We take the diagonal because pdist2 gets the distance between all
-        % points to each other, and we only need each point to eachself.
-        d = diag(distance_reprojection);
-        
-        % If there is any point where the distance is smaller than the threshold selected
-        if any(d < threshold_ransac)
+        %     TODO: Implement the RANSAC algorithm here
+        for j = 1:ransac_iterations
             
-            % Determine which matched points are considered inliers
-            % (distance smaller than the threshold)
-            [pos_inliers,col] = find(d < threshold_ransac);
-            num_inliers = size(pos_inliers,1);
+            perm = randperm(size(sift_matches{i},2));
+            % We want to take 4 random points each time
+            sel = perm(1:4);
             
-            % If it is the first iteration of one image, we set the maximum of inliers as
-            % the first ones.
-            if j == 1
+            % Get those 4 random points from the matches between the model and the 2D image.
+            matched_points_image2D = sift_matches{i}(1,sel);
+            matched_points_model3D = sift_matches{i}(2,sel);
+            
+            % Get the 2D and 3D coordinates for the 4 randomly selected matches
+            % and estimate the pose using PnP
+            image_points = [keypoints{i}(1,matched_points_image2D); keypoints{i}(2,matched_points_image2D)]';
+            world_points = model.coord3d(matched_points_model3D,:);
+            
+            [init_world_orientations(:,:,i),init_world_locations(:,:,i),inlierIdx,status] = estimateWorldCameraPose(image_points, world_points, camera_params,...
+                'MaxReprojectionError', max_reproj_err,'MaxNumTrials',10,...
+                'Confidence',0.0000001);
+            
+            %%% Get the indexes of all matches %%%
+            all_matchedPoints_2Dimage = sift_matches{i}(1,:);
+            all_matchedPoints_3Dmodel = sift_matches{i}(2,:);
+            
+            % Get 2D coordinates of all matches
+            all_image_points = [keypoints{i}(1,all_matchedPoints_2Dimage); keypoints{i}(2,all_matchedPoints_2Dimage)]';
+            % Get 3D coordinates of all matches
+            all_model_points = model.coord3d(all_matchedPoints_3Dmodel,:);
+            
+            % Project all of the 3D points from the matches into the 2D image
+            % using the obtained orientation and translation transformations
+            reprojected_points = project3d2image(all_model_points',camera_params, init_world_orientations(:,:,i), init_world_locations(:, :, i));
+            reprojected_points = reprojected_points';
+            
+            % Calculate the error of reprojecting the points, to determine the
+            % number of inliers and the number of outliers.
+            % The error of reprojection is the euclidean distance between the
+            % points in the image and the reprojected points.
+            distance_reprojection = pdist2(reprojected_points, all_image_points);
+            
+            % We take the diagonal because pdist2 gets the distance between all
+            % points to each other, and we only need each point to eachself.
+            d = diag(distance_reprojection);
+            
+            % If there is any point where the distance is smaller than the threshold selected
+            if any(d < threshold_ransac)
                 
-                max_num_inliers = num_inliers;
-                % save the position of the best inliers with respect to the sift_matches
-                best_inliers_set{i} = pos_inliers;
-                cam_in_world_orientations(:,:,i) = init_world_orientations(:,:,i);
-                cam_in_world_locations(:,:,i) = init_world_locations(:,:,i);
+                % Determine which matched points are considered inliers
+                % (distance smaller than the threshold)
+                [pos_inliers,col] = find(d < threshold_ransac);
+                num_inliers = size(pos_inliers,1);
                 
-                % If we are not in the first iteration, check if the number of inliers founds is
-                % higher than the previous maximum.
-            elseif num_inliers > max_num_inliers
-                
-                % Take the indexes of the inliers
-                inliers_2Dimage = sift_matches{i}(1,pos_inliers);
-                inliers_3Dmodel = sift_matches{i}(2,pos_inliers);
-                
-                
-                % Get the 2D and 3D coordinates for the inliers
-                image_points_new = [keypoints{i}(1,inliers_2Dimage); keypoints{i}(2,inliers_2Dimage)]';
-                world_points_new = model.coord3d(inliers_3Dmodel,:);
-                
-                % save the position of the best inliers with respect to the sift_matches
-                best_inliers_set{i} = pos_inliers;
-                
-                % Set the new maximum number of inliers as the last one
-                max_num_inliers = num_inliers;
+                % If it is the first iteration of one image, we set the maximum of inliers as
+                % the first ones.
+                if j == 1
+                    
+                    max_num_inliers = num_inliers;
+                    % save the position of the best inliers with respect to the sift_matches
+                    best_inliers_set{i} = pos_inliers;
+                    cam_in_world_orientations(:,:,i) = init_world_orientations(:,:,i);
+                    cam_in_world_locations(:,:,i) = init_world_locations(:,:,i);
+                    
+                    % If we are not in the first iteration, check if the number of inliers founds is
+                    % higher than the previous maximum.
+                elseif num_inliers > max_num_inliers
+                    
+                    % Take the indexes of the inliers
+                    inliers_2Dimage = sift_matches{i}(1,pos_inliers);
+                    inliers_3Dmodel = sift_matches{i}(2,pos_inliers);
+                    
+                    
+                    % Get the 2D and 3D coordinates for the inliers
+                    image_points_new = [keypoints{i}(1,inliers_2Dimage); keypoints{i}(2,inliers_2Dimage)]';
+                    world_points_new = model.coord3d(inliers_3Dmodel,:);
+                    
+                    % save the position of the best inliers with respect to the sift_matches
+                    best_inliers_set{i} = pos_inliers;
+                    
+                    % Set the new maximum number of inliers as the last one
+                    max_num_inliers = num_inliers;
+                    
+                end
                 
             end
             
         end
         
+        % Reestimate the pose with PnP
+        [cam_in_world_orientations(:,:,i),cam_in_world_locations(:,:,i),inlierIdx,status] = estimateWorldCameraPose(image_points_new, world_points_new,...
+            camera_params, 'MaxReprojectionError', threshold_ransac, 'MaxNumTrials',ransac_iterations,...
+            'Confidence',93);
+        
+        
     end
-    
-    % Reestimate the pose with PnP
-    [cam_in_world_orientations(:,:,i),cam_in_world_locations(:,:,i),inlierIdx,status] = estimateWorldCameraPose(image_points_new, world_points_new,...
-        camera_params, 'MaxReprojectionError', threshold_ransac, 'MaxNumTrials',ransac_iterations,...
-        'Confidence',93);
-    
-    
 end
-
 
 
 %% Visualize inliers and the bounding box
@@ -238,11 +249,6 @@ end
 % You can use the visualizations below or create your own one
 % But be sure to present the bounding boxes drawn on the image to verify
 % the camera pose
-
-%load('Correct_Orientations.mat');
-%load('Correct_Locations.mat');
-%load('Best_Inliers.mat');
-
 
 edges = [[1, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 7]
     [2, 4, 5, 3, 6, 4, 7, 8, 6, 8, 7, 8]];
