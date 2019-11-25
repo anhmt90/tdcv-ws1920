@@ -5,11 +5,11 @@ addpath('helper_functions')
 
 %% Setup
 % path to the images folder
-path_img_dir = '../data/tracking/valid/img';
+path_img_dir = 'data/tracking/validation/img';
 % path to object ply file
-object_path = '../data/teabox.ply';
+object_path = 'data/teabox.ply';
 % path to results folder
-results_path = '../data/tracking/valid/results';
+results_path = 'data/tracking/validation/results';
 
 % Read the object's geometry 
 % Here vertices correspond to object's corners and faces are triangles
@@ -51,6 +51,8 @@ for i=1:length(Filenames)
     fprintf('Calculating sift features for image: %d \n', i)
     
 %    TODO: Prepare the image (img) for vl_sift() function
+     I = imread(Filenames{i});
+     img = single(rgb2gray(I));
     [keypoints{i}, descriptors{i}] = vl_sift(img) ;
 end
 
