@@ -25,6 +25,11 @@ end
 load('gt_valid.mat')
 
 % TODO: setup camera parameters (camera_params) using cameraParameters()
+focalLength = 2960.37845;
+principalPoint_cx = 1841.68855;
+principalPoint_cy = 1235.23369;
+imageSize = [2456 3680];
+camera_params = cameraParameters('IntrinsicMatrix',[focalLength 0 0; 0 focalLength 0; principalPoint_cx principalPoint_cy 1],'ImageSize',imageSize);
 
 
 %% Get all filenames in images folder
@@ -42,27 +47,35 @@ cam_in_world_locations = zeros(1,3,num_files);
 % You will need vl_sift() and vl_ubcmatch() functions
 % download vlfeat (http://www.vlfeat.org/download.html) and unzip it somewhere
 % Don't forget to add vlfeat folder to MATLAB path
-
-% Place SIFT keypoints and corresponding descriptors for all images here
-keypoints = cell(num_files,1); 
-descriptors = cell(num_files,1); 
-
-for i=1:length(Filenames)
-    fprintf('Calculating sift features for image: %d \n', i)
-    
-%    TODO: Prepare the image (img) for vl_sift() function
-     I = imread(Filenames{i});
-     img = single(rgb2gray(I));
-    [keypoints{i}, descriptors{i}] = vl_sift(img) ;
+rerun_sift = 0;
+sift_files = ["sift_descriptors.mat", "sift_keypoints.mat"];
+all_files_exist = 1;
+for i=1:size(sift_files,2)
+    all_files_exist = all_files_exist && isfile(sift_files(i));
 end
 
-% Save sift features and descriptors and load them when you rerun the code to save time
-save('sift_descriptors.mat', 'descriptors')
-save('sift_keypoints.mat', 'keypoints')
-
-% load('sift_descriptors.mat');
-% load('sift_keypoints.mat');
-
+if all_files_exist && ~rerun_sift
+    for i=1:size(sift_files,2)
+        load(sift_files(i));
+    end
+else
+    % Place SIFT keypoints and corresponding descriptors for all images here
+    keypoints = cell(num_files,1);
+    descriptors = cell(num_files,1);
+    
+    for i=1:length(Filenames)
+        fprintf('Calculating sift features for image: %d \n', i)
+        
+        %    TODO: Prepare the image (img) for vl_sift() function
+        I = imread(Filenames{i});
+        img = single(rgb2gray(I));
+        [keypoints{i}, descriptors{i}] = vl_sift(img) ;
+    end
+    
+    % Save sift features and descriptors and load them when you rerun the code to save time
+    save('sift_descriptors.mat', 'descriptors')
+    save('sift_keypoints.mat', 'keypoints')
+end   
 %% Initialization: Compute camera pose for the first image
 
 % As the initialization step for the tracking
@@ -77,6 +90,47 @@ save('sift_keypoints.mat', 'keypoints')
 
 
 % TODO: Estimate camera position for the first image
+load('sift_model.mat')
+sift_matches=cell(1,1);
+sift_scores=cell(1,1);
+
+% Default threshold for SIFT keypoints matching: 1.5
+% % When taking higher value, match is only recognized if similarity is very high
+threshold_ubcmatch = 2;
+% Match features between SIFT model and SIFT features from new image
+[sift_matches{1} , sift_scores{1}]= vl_ubcmatch(descriptors{1}, model.descriptors, threshold_ubcmatch);
+
+figure
+% Plot the image and the matched points on top.
+imshow (char(Filenames(1)));
+hold on;
+% Visualize the matched points of the image
+vl_plotframe(keypoints{1}(:,sift_matches{1}(1,:)), 'linewidth',2);
+%plot (keypoints{h}(1, sift_matches{h}(1,:)), keypoints{h}(2, sift_matches{h}(1,:)), 'r*');
+hold off;
+%%
+cam_in_world_orientations = zeros(3,3);
+cam_in_world_locations = zeros(1,3);
+best_inliers_set = cell(1);
+
+init_world_locations = zeros(1,3);
+init_world_orientations = zeros(3,3);
+
+ransac_iterations = 100; %input('Please select the number of iterations:','s');
+threshold_ransac = 4; %input('Please select the threshold for RANSAC method:','s');
+%     TODO: Implement the RANSAC algorithm here
+
+[best_inliers_set, max_num_inliers] = RANSAC(ransac_iterations, threshold_ransac, sift_matches{1}, keypoints{1}, model.coord3d, camera_params);
+
+% Take the indexes of the inliers
+inliers_2Dimage = sift_matches{1}(1,best_inliers_set);
+inliers_3Dmodel = sift_matches{1}(2,best_inliers_set);
+
+
+% Get the 2D and 3D coordinates for the inliers
+image_points = [keypoints{1}(1,inliers_2Dimage); keypoints{1}(2,inliers_2Dimage)]';
+world_points = model.coord3d(inliers_3Dmodel,:);
+
 [init_orientation, init_location] = estimateWorldCameraPose(image_points, world_points, camera_params, 'MaxReprojectionError', 4);
 
 cam_in_world_orientations(:,:, 1) = init_orientation;
