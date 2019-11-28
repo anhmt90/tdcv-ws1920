@@ -1,4 +1,4 @@
-function [best_inliers_set, max_num_inliers] = RANSAC(iterations, threshold, sift_matches, keypoints, Coord3D, camera_params)
+function [best_inliers_set, max_num_inliers] = ransac_function(iterations, threshold, sift_matches, keypoints, Coord3D, camera_params)
 %RANSAC Summary of this function goes here
 %   Detailed explanation goes here
 
