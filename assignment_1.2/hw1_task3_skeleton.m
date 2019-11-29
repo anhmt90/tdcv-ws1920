@@ -325,7 +325,14 @@ for i=1 %:(num_files-1)
     % 5) Compute Jacobian of the reprojection error with respect to the pose
     % parameters and apply IRLS to iteratively update the camera pose for the subsequent frame (image i+1)
     
+    % Rotation parameters (given in Exponential Maps)
+    rotationVector = rotationMatrixToVector(cam_in_world_orientations(:,:,i));
     
+    % Jacobian of the reprojection error with respect to the pose
+    J = Jacobian_function(backProjectedPoints_3Dcoord, image_points.',...
+        camera_params, cam_in_world_locations(:,:,i), rotationVector);
+    
+    %%
     %%%%%%%%%%%%%
     % 6) Now the subsequent frame (image i+1) becomes the initial frame for the
     % next subsequent frame (image i+2) and the method continues until camera poses for all
