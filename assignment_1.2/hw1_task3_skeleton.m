@@ -320,11 +320,59 @@ for i=1 %:(num_files-1)
     scatter(image_points(1,:)',image_points(2,:)','bo')
     legend('Reprojected points','Matched points from this image')
     hold off;
-    
+    %%
     %%%%%%%%%%%%%
     % 5) Compute Jacobian of the reprojection error with respect to the pose
     % parameters and apply IRLS to iteratively update the camera pose for the subsequent frame (image i+1)
+    %%%%%%%%%%%%%
+    %Finite Diferences
+    %First we parametrize the rotation using exponential maps and build the
+    %skew symmetric matrix 
+    rotationVector = rotationMatrixToVector(cam_in_world_orientations(:,:,i));
+    v1 = rotationVector(1);
+    v2 = rotationVector(2);
+    v3 = rotationVector(3);
+    skewMat = [0, -v3, v2; v3, 0, -v1; -v2, v1, 0];
     
+    %Initializing the Jacobian matrix
+    J_fd = zeros(size(reprojected_points,2)*2,6);
+    delta = 1e-6;
+    
+    for j=1:3
+        %Building the skew mat representing the differential rotation wrt
+        %to each of the parameters
+        diffVect = zeros(1,3);
+        diffVect(1,j) = 1;
+        diffVect = rotationVector + delta * diffVect;
+        v1 = diffVect(1);
+        v2 = diffVect(2);
+        v3 = diffVect(3);
+        skewdiffMat = [0, -v3, v2; v3, 0, -v1; -v2, v1, 0];
+        %Calculating partial derivatives wrt rotation params as:
+        %(Reprojected(Pose_Diff)-Reprojected(Pose_Orig))/DeltaX
+        partialDev = project3d2image(backProjectedPoints_3Dcoord',camera_params, skewdiffMat, cam_in_world_locations(:, :, i))...
+            - project3d2image(backProjectedPoints_3Dcoord',camera_params, skewMat, cam_in_world_locations(:, :, i));
+        partialDev = partialDev/delta;
+        partialDev = reshape(partialDev, [size(reprojected_points, 2)*2,1]);
+        J_fd(:,j) = partialDev;
+        
+        %Here, We do the same wrt translation parameters
+        diffTrans = zeros(1,3);
+        diffTrans(1,j) = 1;
+        diffTrans = cam_in_world_locations(:, :, i) + delta * diffTrans; 
+        % Project match points from 3D model to the current frame (i+1) (2D image) 
+        partialDev = project3d2image(backProjectedPoints_3Dcoord'...
+            ,camera_params, skewMat, diffTrans)...
+            - project3d2image(backProjectedPoints_3Dcoord'...
+            ,camera_params, skewMat, cam_in_world_locations(:, :, i));
+        partialDev = partialDev/delta;
+        partialDev = reshape(partialDev, [size(reprojected_points, 2)*2,1]);
+        J_fd(:,j+3) = partialDev;
+    end
+    
+            
+    %%%%%%%%%%%%%
+    %Symbolic Method
     % Rotation parameters (given in Exponential Maps)
     rotationVector = rotationMatrixToVector(cam_in_world_orientations(:,:,i));
     
