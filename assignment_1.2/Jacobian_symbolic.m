@@ -25,7 +25,11 @@ uvs=K*[R t]*point3D;
 re_point=[uvs(1)/uvs(3) uvs(2)/uvs(3)];
 
 % Euclidean distance
-d = sqrt((re_point(1, 1)-point2D(1, 1))^2+(re_point(1, 2)-point2D(1, 2))^2);
+%d = sqrt((re_point(1, 1)-point2D(1, 1))^2+(re_point(1, 2)-point2D(1, 2))^2);
+du = abs(point2D(1, 1)-re_point(1, 1));
+dv = abs(point2D(1, 2)-re_point(1, 2));
 
-J = [diff(d, wx) diff(d, wy) diff(d, wz)...
-    diff(d, tx) diff(d, ty) diff(d, tz)];
+J = [diff(du, wx) diff(du, wy) diff(du, wz)...
+    diff(du, tx) diff(du, ty) diff(du, tz);
+    diff(dv, wx) diff(dv, wy) diff(dv, wz)...
+    diff(dv, tx) diff(dv, ty) diff(dv, tz)];
