@@ -328,35 +328,40 @@ for i=1 %:(num_files-1)
     %Finite Diferences
     %First we parametrize the rotation using exponential maps 
     rotationVector = rotationMatrixToVector(cam_in_world_orientations(:,:,i));
-    reprojectedOrig = project3d2image(backProjectedPoints_3Dcoord',camera_params, cam_in_world_orientations(:,:,i), cam_in_world_locations(:, :, i));
+
     %Initializing the Jacobian matrix
     J_fd = zeros(size(reprojected_points,2)*2,6);
-    delta = eps;
+    delta = 1e-9;
     
     for j=1:3
-        %Building the skew mat representing the differential rotation wrt
-        %to each of the parameters
+        %We are going to calculate the Jacobian by central differences,
+        %which has the form of dF/dx = (F(x+delta)-F(x-delta))/2delta
         diffVect = zeros(1,3);
         diffVect(1,j) = 1;
-        diffVect = rotationVector + delta * diffVect;
+        diffVect = [rotationVector + delta * diffVect;rotationVector - delta * diffVect];
         %Calculating partial derivatives wrt rotation params as:
-        %(abs(Reprojected(Pose_Diff)-matchedPoints)- abs(Reprojected(Pose_Orig)-matchedPoints))/DeltaX
-        reprojectedDiff = project3d2image(backProjectedPoints_3Dcoord',camera_params, rotationVectorToMatrix(diffVect), cam_in_world_locations(:, :, i));
-        partialDev = abs(reprojectedDiff - image_points) - abs(reprojectedOrig - image_points);
-        partialDev = partialDev/delta;
-        partialDev = reshape(partialDev, [size(reprojected_points, 2)*2,1]);
-        J_fd(:,j) = partialDev;
+        reprojectedDiff_Pos = worldToImage(camera_params,rotationVectorToMatrix(diffVect(1,:)), cam_in_world_locations(:, :, i), backProjectedPoints_3Dcoord);
+        reprojectedDiff_Neg = worldToImage(camera_params,rotationVectorToMatrix(diffVect(2,:)), cam_in_world_locations(:, :, i), backProjectedPoints_3Dcoord);
+        %Partial derivative of the reprojected error (ReprojectedPoints -
+        %Matched Points). But since Matched Points do not depend on pose
+        %params, we can calculate it only as the difference between the
+        %reprojected differences
+        partialDev = (reprojectedDiff_Pos - reprojectedDiff_Neg);
+        partialDev = partialDev/(2*delta);
+        J_fd(1:2:end,j) = partialDev(:,1);
+        J_fd(2:2:end,j) = partialDev(:,2);
         
         %Here, We do the same wrt translation parameters
         diffTrans = zeros(1,3);
         diffTrans(1,j) = 1;
-        diffTrans = cam_in_world_locations(:, :, i) + delta * diffTrans; 
+        diffTrans = [cam_in_world_locations(:, :, i) + delta * diffTrans;cam_in_world_locations(:, :, i) - delta * diffTrans]; 
         % Project match points from 3D model to the current frame (i+1) (2D image) 
-        reprojectedDiff = project3d2image(backProjectedPoints_3Dcoord',camera_params, cam_in_world_orientations(:,:,i), diffTrans);
-        partialDev = abs(reprojectedDiff - image_points) - abs(reprojectedOrig - image_points);
-        partialDev = partialDev/delta;
-        partialDev = reshape(partialDev, [size(reprojected_points, 2)*2,1]);
-        J_fd(:,j+3) = partialDev;
+        reprojectedDiff_Pos = worldToImage(camera_params,cam_in_world_orientations(:,:,i), diffTrans(1,:), backProjectedPoints_3Dcoord);
+        reprojectedDiff_Neg = worldToImage(camera_params,cam_in_world_orientations(:,:,i), diffTrans(2,:), backProjectedPoints_3Dcoord);
+        partialDev = (reprojectedDiff_Pos - reprojectedDiff_Neg);
+        partialDev = partialDev/(2*delta);
+        J_fd(1:2:end,j+3) = partialDev(:,1);
+        J_fd(2:2:end,j+3) = partialDev(:,2);
     end
     
             
