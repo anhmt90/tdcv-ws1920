@@ -376,6 +376,66 @@ for i=1 %:(num_files-1)
     
     %%
     %%%%%%%%%%%%%
+    % IRLS Implementation
+    
+    IRLS.iterations = 20;
+    IRLS.lambda = 0.0001;
+    IRLS.tau = 0.005;
+    IRLS.t = 0;
+    IRLS.u = IRLS.tau + 1;
+    IRLS.c = 4.685;
+
+    cam_in_world_orientations(:,:,i+1) = cam_in_world_orientations(:,:,i);
+    cam_in_world_locations(:,:,i+1) = cam_in_world_locations(:,:,i);
+    
+    count_iterations = 0;
+
+    while count_iterations < IRLS.iterations && IRLS.u > IRLS.tau
+        
+        reprojected_points = project3d2image(backProjectedPoints_3Dcoord',...
+            camera_params, cam_in_world_orientations(:,:,i+1), cam_in_world_locations(:, :, i+1));
+        
+        e = [];
+        for j = 1:size(image_points.')
+            e = [e; image_points(:, j)-reprojected_points(:, j)];
+        end
+
+        sigma =  1.4825796*mad(e);
+        
+        W = e;
+        W(W<IRLS.c) = (1-((W(W<IRLS.c)/sigma).^2/IRLS.c.^2)).^2;
+        W(W>=IRLS.c) = 0;
+        D = diag(W, 0);
+
+        % Rotation parameters (given in Exponential Maps)
+        rotationVector = rotationMatrixToVector(cam_in_world_orientations(:,:,i+1));
+
+        % Jacobian of the reprojection error with respect to the pose
+        J = Jacobian_function(backProjectedPoints_3Dcoord, image_points.',...
+            camera_params, cam_in_world_locations(:,:,i+1).', rotationVector);
+
+%         energy_init = Energy_function(backProjectedPoints_3Dcoord, image_points.',...
+%             camera_params, cam_in_world_locations(:,:,i+1).', rotationVector);
+
+        delta = -inv(J.'*D*J+IRLS.lambda*eye(6))*(J.'*D*e);
+
+%         energy_new = Energy_function(backProjectedPoints_3Dcoord, image_points.',...
+%             camera_params, cam_in_world_locations(:,:,i+1) + delta(4:6).', rotationVector + delta(1:3).');
+
+        if energy_new > energy_init
+          IRLS.lambda = IRLS.lambda*10;
+        else
+          IRLS.lambda = IRLS.lambda/10;
+          cam_in_world_orientations(:,:,i+1) = rotationVectorToMatrix(rotationVector + delta(1:3).');
+          cam_in_world_locations(:,:,i+1) = cam_in_world_locations(:,:,i+1) + delta(4:6).';
+        end
+
+        IRLS.u = norm(delta);
+        count_iterations = count_iterations + 1; 
+    end
+    
+    %%
+    %%%%%%%%%%%%%
     % 6) Now the subsequent frame (image i+1) becomes the initial frame for the
     % next subsequent frame (image i+2) and the method continues until camera poses for all
     % images are estimated
