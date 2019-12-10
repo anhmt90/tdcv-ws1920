@@ -21,7 +21,7 @@ point3D = [X Y Z 1].';
 point2D = [x y];
 
 % Reprojected point
-uvs=K*[R t]*point3D;
+uvs=K*[R -R*t]*point3D;
 re_point=[uvs(1)/uvs(3) uvs(2)/uvs(3)];
 
 % Euclidean distance
