@@ -4,6 +4,7 @@ close all
 addpath('helper_functions')
 % addpath('own_helper_functions')
 
+%%
 % Setup
 % path to the validation images folder
 test_img_dir = 'data/tracking/test/img';
@@ -116,22 +117,22 @@ end
 
 
 % TODO: Estimate camera position for the first image
-
-load('sift_model.mat', 'model');
-
-threshold_ubcmatch = 3.5;
-sift_matches = cell(1,1);
-sift_matches{1} = vl_ubcmatch(descriptors{1}, model.descriptors, threshold_ubcmatch);
-
-figure
-% Plot the image and the matched points on top.
-imshow (char(Filenames(1)));
-title('Matched points between model and 1st frame')
-hold on;
-% Visualize the matched points of the image
-vl_plotframe(keypoints{1}(:,sift_matches{1}(1,:)), 'linewidth',2);
-%plot (keypoints{h}(1, sift_matches{h}(1,:)), keypoints{h}(2, sift_matches{h}(1,:)), 'r*');
-hold off;
+% 
+% load('sift_model.mat', 'model');
+% 
+% threshold_ubcmatch = 3.5;
+% sift_matches = cell(1,1);
+% sift_matches{1} = vl_ubcmatch(descriptors{1}, model.descriptors, threshold_ubcmatch);
+% 
+% figure
+% % Plot the image and the matched points on top.
+% imshow (char(Filenames(1)));
+% title('Matched points between model and 1st frame')
+% hold on;
+% % Visualize the matched points of the image
+% vl_plotframe(keypoints{1}(:,sift_matches{1}(1,:)), 'linewidth',2);
+% %plot (keypoints{h}(1, sift_matches{h}(1,:)), keypoints{h}(2, sift_matches{h}(1,:)), 'r*');
+% hold off;
 
 %=======================================================
 %            _     _      _ _
@@ -146,37 +147,81 @@ hold off;
 
 % cam_in_world_orientations = zeros(3,3);
 % cam_in_world_locations = zeros(1,3);
-best_inliers_set = cell(1);
+% best_inliers_set = cell(1);
+% 
+% init_world_orientations = zeros(3,3);
+% init_world_locations = zeros(1,3);
+% 
+% 
+% ransac_iterations = 1000; %input('Please select the number of iterations:','s');
+% threshold_ransac = 10; %input('Please select the threshold for RANSAC method:','s');
+% 
+% [best_inliers_set, max_num_inliers] = ransac_function(ransac_iterations, threshold_ransac, sift_matches{1}, keypoints{1}, model.coord3d, camera_params);
+% 
+% % Take the indexes of the inliers
+% inliers_2Dimage = sift_matches{1}(1,best_inliers_set);
+% inliers_3Dmodel = sift_matches{1}(2,best_inliers_set);
+% 
+% 
+% % Get the 2D and 3D coordinates for the inliers
+% image_points = [keypoints{1}(1,inliers_2Dimage); keypoints{1}(2,inliers_2Dimage)]';
+% world_points = model.coord3d(inliers_3Dmodel,:);
+% 
+% [init_orientation, init_location] = estimateWorldCameraPose(image_points, world_points, camera_params, 'MaxReprojectionError', 10000);
+% 
+% cam_in_world_orientations(:,:, 1) = init_orientation;
+% cam_in_world_locations(:,:, 1) = init_location;
 
-init_world_orientations = zeros(3,3);
-init_world_locations = zeros(1,3);
+%% Initialize Pose of First image with Labeled corners for better initialization
+
+% Label images
+% You can use this function to label corners of the model on all images
+% This function will give an array with image coordinates for all points
+% Be careful that some points may not be visible on the image and so this
+% will result in NaN values in the output array
+% Don't forget to filter NaNs later
+num_points = 8;
+relabel = 0;
+ 
+if isfile('labeled_points.mat') && ~relabel
+    load('labeled_points.mat');
+else
+    % We only need to do it for the first image
+    labeled_points = mark_image(Filenames{1}, num_points);
+    
+    % Save labeled points and load them when you rerun the code to save time
+    save('labeled_points.mat', 'labeled_points');
+end
+
+% Call estimateWorldCameraPose to perform PnP
+
+% Place estimated camera orientation and location here to use
+% visualisations later
+cam_in_world_orientations = zeros(3,3,num_files);
+cam_in_world_locations = zeros(1,3,num_files);
+
+max_reproj_err = 4;
+
+% We only need to do this for the first image
+fprintf('Estimating pose for image: %d \n', 1)
+% find index for entries with NaN values
+index = find(isnan(labeled_points(:,1,1)));
+% delete index in image and world points to ensure that 2d-3d correspondence is kept
+image_points = labeled_points(:,:,1);
+image_points(index, :) = [];
+world_points = vertices;
+world_points(index, :) = [];
+
+[cam_in_world_orientations(:,:,1),cam_in_world_locations(:,:,1)] = estimateWorldCameraPose(image_points, world_points, camera_params, 'MaxReprojectionError', max_reproj_err);
 
 
-ransac_iterations = 1000; %input('Please select the number of iterations:','s');
-threshold_ransac = 10; %input('Please select the threshold for RANSAC method:','s');
-
-[best_inliers_set, max_num_inliers] = ransac_function(ransac_iterations, threshold_ransac, sift_matches{1}, keypoints{1}, model.coord3d, camera_params);
-
-% Take the indexes of the inliers
-inliers_2Dimage = sift_matches{1}(1,best_inliers_set);
-inliers_3Dmodel = sift_matches{1}(2,best_inliers_set);
-
-
-% Get the 2D and 3D coordinates for the inliers
-image_points = [keypoints{1}(1,inliers_2Dimage); keypoints{1}(2,inliers_2Dimage)]';
-world_points = model.coord3d(inliers_3Dmodel,:);
-
-[init_orientation, init_location] = estimateWorldCameraPose(image_points, world_points, camera_params, 'MaxReprojectionError', 10000);
-
-cam_in_world_orientations(:,:, 1) = init_orientation;
-cam_in_world_locations(:,:, 1) = init_location;
 
 % Visualise the pose for the initial frame
 edges = [[1, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 7]
     [2, 4, 5, 3, 6, 4, 7, 8, 6, 8, 7, 8]];
 figure()
-hold on;
 imshow(char(Filenames(1)), 'InitialMagnification', 'fit');
+hold on;
 title(sprintf('Initial Image Camera Pose'));
 %   Plot bounding box
 points = project3d2image(vertices',camera_params, cam_in_world_orientations(:,:,1), cam_in_world_locations(:, :, 1));
@@ -440,6 +485,8 @@ for i=1:(num_files-1)
          
 %         J = get_Jacobian(backProjectedPoints_3Dcoord, reprojected_points, theta, K); 
         
+%        J = JacobianChainRule_function(camera_params.IntrinsicMatrix.', rotationVector, image_points, backProjectedPoints_3Dcoord.');
+        
         delta = -inv(J' * W * J + lambda * eye(6)) * (J' * W * e);
         
         theta_updated = theta + delta;
@@ -632,7 +679,11 @@ reprojected_points = project3d2image(M_3D',camera_params, R, t');
 [e, sigma] = get_residuals(reprojected_points, m_2D');
 
 % calc e_init
+
 energy = sum(Tukey(e ./ sigma));
+
+% Should it be like that or without the sigma
+%energy = sum(Tukey(e));
 end
 
 function [R, t] = get_pose(theta)
@@ -640,6 +691,40 @@ function [R, t] = get_pose(theta)
     t = [theta(4); theta(5); theta(6)];
 end
 
+function skewMatrix = get_sym_matrix(v)
 
+skewMatrix = [0 -v(3) v(2) ; ...
+    v(3) 0 -v(1) ; ...
+    -v(2) v(1) 0];
+
+end
+
+function J = JacobianChainRule_function(intrinsicsMatrix, rotationVector, m_2D, M_3D)
+
+rotationMatrix = rotationVectorToMatrix(rotationVector);
+v = get_sym_matrix(rotationVector);
+I = eye(3);
+
+for j = 1:3
+    e = I(:,j);
+    %Compute derivative of R with respect to each one of the three rotating
+    %variables (v1 v2 v3)
+    dRdv{j} = ((rotationVector(j)*v + get_sym_matrix(cross(rotationVector, (I-rotationMatrix)*e)))/(norm(rotationVector)^2))*rotationMatrix;
+end
+
+dmtildedM = intrinsicsMatrix;
+
+for M = 1: numel(M_3D(1,:))
+    % Derivative of m with respect to mtilda.
+    dmdmtilde = [1 0 -m_2D(1,M) ; 0 1 -m_2D(2,M)];
+    
+    % Derivative of Mi with respect to p. p=[R1 R2 R3 t1 t2 t3]
+    dMdp = [dRdv{1}*M_3D(:, M) dRdv{2}*M_3D(:, M) dRdv{3}*M_3D(:, M) eye(3)];
+    
+    % Jacobian by chain rule
+    J(2*M-1:2*M,:) = dmdmtilde * dmtildedM * dMdp;
+end
+
+end
 
 
