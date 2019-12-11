@@ -265,7 +265,7 @@ save('workspace_vars.mat')
 % but you should also experiment with their different values
 threshold_irls = 0.005; % update threshold for IRLS
 max_iter = 50; % number of iterations
-threshold_ubcmatch = 6; % matching threshold for vl_ubcmatch()
+threshold_ubcmatch = 2.5; % matching threshold for vl_ubcmatch()
 
 
 for i=1:(num_files-1)
@@ -355,8 +355,6 @@ for i=1:(num_files-1)
     % backprojected to the model
     % sift_matches{2}(2,:) ---> sift matches in the subsequent frame
     
-    
-    
 %     figure(2)
 %     % Plot the image and the matched points on top.
 %     imshow (char(Filenames(i+1)));
@@ -380,10 +378,10 @@ for i=1:(num_files-1)
     % Get the 3D coordinates of the backprojected points coming from the
     % initial frame
     backProjectedPoints_3Dcoord = backProjected_point.coord3d(sift_matches{i+1}(1,:),:);
+
     
     % Project match points from 3D model to the current frame (i+1) (2D image)
-    reprojected_points = project3d2image(backProjectedPoints_3Dcoord',camera_params, R, t);
-%     reprojected_points = worldToImage(camera_params, R, t, backProjectedPoints_3Dcoord);
+    reprojected_points_prev = project3d2image(backProjectedPoints_3Dcoord',camera_params, R, t);
 %     reprojected_points = reprojected_points.';
     %========================================================
     %   ___      _ _   _      _   ___
@@ -395,27 +393,6 @@ for i=1:(num_files-1)
     % from step 3
     image_points = [keypoints{i+1}(1,sift_matches{i+1}(2,:));keypoints{i+1}(2,sift_matches{i+1}(2,:))];
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
 %     save('workspace_vars_debug.mat')
 %     break;
     
@@ -426,21 +403,35 @@ for i=1:(num_files-1)
     % points to each other, and we only need each point to eachself.
     %     residuals = diag(distance_reprojection);
     %     energy = sum(residuals' * residuals);
+
+        
     
+    [init_orientations,init_locations,inlieridx,~] = estimateWorldCameraPose(image_points', backProjectedPoints_3Dcoord, ...
+        camera_params, 'MaxReprojectionError', 20);
+    
+    R = init_orientations;
+    t = init_locations;
+
+    % Project match points from 3D model to the current frame (i+1) (2D image)
+    reprojected_points = project3d2image(backProjectedPoints_3Dcoord',camera_params, R, t);
+
+
     % Figure to see the comparison between the points that were matched
     % between the SIFT points of the previous and current frame, vs the
     % reprojected matched points from the 3D model.
     
     
-%     figure(i+1)
+%     figure(3)
 %     imshow(char(Filenames(i+1)))
 %     title(['Frame ', num2str(i+1), ' - Reprojected points from 3D model vs Matched points'])
 %     hold on;
+%     scatter(reprojected_points_prev(1,:)',reprojected_points_prev(2,:)','g*')    
 %     scatter(reprojected_points(1,:)',reprojected_points(2,:)','rx')
 %     scatter(image_points(1,:)',image_points(2,:)','bo')
 %     legend('Reprojected points','2D correspondences with previous image')
 %     hold off;
-    
+
+
     %=======================================================================
     %    ___                     _          _____           _    _
     %   / __|___ _ __  _ __ _  _| |_ ___   _ | |__ _ __ ___| |__(_)__ _ _ _
@@ -481,12 +472,12 @@ for i=1:(num_files-1)
 %             camera_params, t, rotationVector);
 
 
-         J = Jacobian_function2(backProjectedPoints_3Dcoord, image_points.',...
-             camera_params, t, rotationVector);
+%         J = Jacobian_function2(backProjectedPoints_3Dcoord, image_points.',...
+%             camera_params, t, rotationVector);
          
 %         J = get_Jacobian(backProjectedPoints_3Dcoord, reprojected_points, theta, K); 
         
-%        J = JacobianChainRule_function(camera_params.IntrinsicMatrix.', rotationVector, image_points, backProjectedPoints_3Dcoord.');
+        J = JacobianChainRule_function(camera_params.IntrinsicMatrix.', rotationVector, image_points, backProjectedPoints_3Dcoord.');
         
         delta = -inv(J' * W * J + lambda * eye(6)) * (J' * W * e);
         
