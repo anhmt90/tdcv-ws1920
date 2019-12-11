@@ -180,6 +180,7 @@ imshow(char(Filenames(1)), 'InitialMagnification', 'fit');
 title(sprintf('Initial Image Camera Pose'));
 %   Plot bounding box
 points = project3d2image(vertices',camera_params, cam_in_world_orientations(:,:,1), cam_in_world_locations(:, :, 1));
+% points = worldToImage(camera_params, init_orientation, init_location, world_points);
 for j=1:12
     plot(points(1, edges(:, j)), points(2, edges(:,j)), 'color', 'b');
 end
@@ -218,7 +219,7 @@ save('workspace_vars.mat')
 % You can start with these parameters to debug your solution
 % but you should also experiment with their different values
 threshold_irls = 0.005; % update threshold for IRLS
-max_iter = 20; % number of iterations
+max_iter = 30; % number of iterations
 threshold_ubcmatch = 6; % matching threshold for vl_ubcmatch()
 
 
@@ -232,12 +233,16 @@ for i=1:(num_files-1)
     %1) Project all SIFT keypoints from previous image,that have been matched, to 3D object. Use ray
     %intersection.
     
+    R = cam_in_world_orientations(:,:,i);
+    t = cam_in_world_locations(:,:,i);
+    K = camera_params.IntrinsicMatrix;
+    
     backProjected_point.coord3d = [];
     backProjected_point.descriptors = [];
     keypoint_3Dmodel = [];
     %indx_keypoints = [];
     
-    P = camera_params.IntrinsicMatrix.'*[cam_in_world_orientations(:,:,i) -cam_in_world_orientations(:,:,i)*cam_in_world_locations(:,:,i).'];
+    P = K.' * [R -R*t.'];
     Q = P(:,1:3);
     q = P(:,4);
     orig = -inv(Q)*q; % this corresponds to C
@@ -248,8 +253,8 @@ for i=1:(num_files-1)
     %  (_-< ' \/ _ \/ _ \  _| | '_/ _` | || (_-<
     %  /__/_||_\___/\___/\__| |_| \__,_|\_, /__/
     %                                   |__/
-    % We need to back project all sift points found on image i (the 1st image
-    % in this case) to find which one intersects with the 3D model
+    % We need to back project all sift points found on image i
+    % to find which one intersects with the 3D model
     for siftpoint_ = 1:size(keypoints{i},2)
         
         % Create homogeneous coordinate point for one sift point
@@ -285,18 +290,18 @@ for i=1:(num_files-1)
     
     % Images to check if the points that are said to belong to the model
     % are inside the box in each image
-    figure(1)
-    imshow(char(Filenames(i)), 'InitialMagnification', 'fit')
-    title('SIFT points intersecting with the 3D model when backprojected')
-    hold on;
-    scatter(keypoint_3Dmodel(1,:),keypoint_3Dmodel(2,:),'bo')
-    hold off;
+%     figure(1)
+%     imshow(char(Filenames(i)), 'InitialMagnification', 'fit')
+%     title('SIFT points intersecting with the 3D model when backprojected')
+%     hold on;
+%     scatter(keypoint_3Dmodel(1,:),keypoint_3Dmodel(2,:),'bo')
+%     hold off;
     
     %%%%%%%%%%%%%
     % 2) Find matches between SIFT keypoints from the initial frame (image 1)
     % that have intersected with the 3D model and the keypoints of the subsequent frame (image 2)
     
-    threshold_ubcmatch = 2.5;
+%     threshold_ubcmatch = 2.5;
     
     % Calculate the matches
     sift_matches{i+1} = vl_ubcmatch(backProjected_point.descriptors, descriptors{i+1}, threshold_ubcmatch);
@@ -307,16 +312,16 @@ for i=1:(num_files-1)
     
     
     
-    figure(2)
-    % Plot the image and the matched points on top.
-    imshow (char(Filenames(i+1)));
-    title('Matched SIFT points from current frame (i+1) on top of the current image')
-    hold on;
-    % Visualize the matched points on the frame we are currently trying to
-    % estimate the pose i+1
-    vl_plotframe(keypoints{i+1}(:,sift_matches{i+1}(2,:)), 'linewidth',2)
-    %plot (keypoints{h}(1, sift_matches{h}(1,:)), keypoints{h}(2, sift_matches{h}(1,:)), 'r*');
-    hold off;
+%     figure(2)
+%     % Plot the image and the matched points on top.
+%     imshow (char(Filenames(i+1)));
+%     title('Matched SIFT points from current frame (i+1) on top of the current image')
+%     hold on;
+%     % Visualize the matched points on the frame we are currently trying to
+%     % estimate the pose i+1
+%     vl_plotframe(keypoints{i+1}(:,sift_matches{i+1}(2,:)), 'linewidth',2)
+%     %plot (keypoints{h}(1, sift_matches{h}(1,:)), keypoints{h}(2, sift_matches{h}(1,:)), 'r*');
+%     hold off;
     
     %================================================
     %   ___                   _        _   _
@@ -332,8 +337,9 @@ for i=1:(num_files-1)
     backProjectedPoints_3Dcoord = backProjected_point.coord3d(sift_matches{i+1}(1,:),:);
     
     % Project match points from 3D model to the current frame (i+1) (2D image)
-    reprojected_points = project3d2image(backProjectedPoints_3Dcoord',camera_params, cam_in_world_orientations(:,:,i), cam_in_world_locations(:, :, i));
-    
+    reprojected_points = project3d2image(backProjectedPoints_3Dcoord',camera_params, R, t);
+%     reprojected_points = worldToImage(camera_params, R, t, backProjectedPoints_3Dcoord);
+%     reprojected_points = reprojected_points.';
     %========================================================
     %   ___      _ _   _      _   ___
     %  |_ _|_ _ (_) |_(_)__ _| | | __|_ _ _ _ ___ _ _
@@ -343,6 +349,30 @@ for i=1:(num_files-1)
     % matches for the subsequent frame (image i+1) and from reprojected matches
     % from step 3
     image_points = [keypoints{i+1}(1,sift_matches{i+1}(2,:));keypoints{i+1}(2,sift_matches{i+1}(2,:))];
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+%     save('workspace_vars_debug.mat')
+%     break;
     
     % Calculate the error of reprojected the points
     %     distance_reprojection = pdist2(reprojected_points',image_points');
@@ -357,14 +387,14 @@ for i=1:(num_files-1)
     % reprojected matched points from the 3D model.
     
     
-    figure(3)
-    imshow(char(Filenames(i+1)))
-    title('Reprojected points from 3D model vs Matched points')
-    hold on;
-    scatter(reprojected_points(1,:)',reprojected_points(2,:)','rx')
-    scatter(image_points(1,:)',image_points(2,:)','bo')
-    legend('Reprojected points','2D correspondences with previous image')
-    hold off;
+%     figure(i+1)
+%     imshow(char(Filenames(i+1)))
+%     title(['Frame ', num2str(i+1), ' - Reprojected points from 3D model vs Matched points'])
+%     hold on;
+%     scatter(reprojected_points(1,:)',reprojected_points(2,:)','rx')
+%     scatter(image_points(1,:)',image_points(2,:)','bo')
+%     legend('Reprojected points','2D correspondences with previous image')
+%     hold off;
     
     %=======================================================================
     %    ___                     _          _____           _    _
@@ -378,7 +408,7 @@ for i=1:(num_files-1)
     %%%%%%%%%%%%%
     %Symbolic Method
     % Rotation parameters (given in Exponential Maps)
-    rotationVector = rotationMatrixToVector(cam_in_world_orientations(:,:,i));
+    rotationVector = rotationMatrixToVector(R);
     
     % Jacobian of the reprojection error with respect to the pose
     %     J = Jacobian_function(backProjectedPoints_3Dcoord, image_points.',...
@@ -389,8 +419,7 @@ for i=1:(num_files-1)
     %   | ||   / |__\__ \
     %  |___|_|_\____|___/
     
-    translationVector = cam_in_world_locations(:,:,i);
-    theta = [rotationVector, translationVector].';
+    theta = [rotationVector, t].';
     
     iter = 0;
     lambda = 0.001;
@@ -402,8 +431,14 @@ for i=1:(num_files-1)
         W = compute_W(e ./ sigma);
         
         % the Jacobian
-        J = Jacobian_function(backProjectedPoints_3Dcoord, image_points.',...
-            camera_params, translationVector, rotationVector);
+%         J = Jacobian_function(backProjectedPoints_3Dcoord, image_points.',...
+%             camera_params, t, rotationVector);
+
+
+         J = Jacobian_function2(backProjectedPoints_3Dcoord, image_points.',...
+             camera_params, t, rotationVector);
+         
+%         J = get_Jacobian(backProjectedPoints_3Dcoord, reprojected_points, theta, K); 
         
         delta = -inv(J' * W * J + lambda * eye(6)) * (J' * W * e);
         
@@ -420,8 +455,8 @@ for i=1:(num_files-1)
         u = norm(delta);
         iter = iter + 1;
     end
-    R = rotationVectorToMatrix([theta(1); theta(2); theta(3)]);
-    t = [theta(4); theta(5); theta(6)];
+    R_ = rotationVectorToMatrix([theta(1); theta(2); theta(3)]);
+    t_ = [theta(4); theta(5); theta(6)];
     
     %
     %%%%%%%%%%%%%
@@ -429,9 +464,10 @@ for i=1:(num_files-1)
     % next subsequent frame (image i+2) and the method continues until camera poses for all
     % images are estimated
     
-    cam_in_world_locations(:,:,i+1) = t;
-    cam_in_world_orientations(:,:,i+1) = R;
+    cam_in_world_locations(:,:,i+1) = t_;
+    cam_in_world_orientations(:,:,i+1) = R_;
 end
+save('done_optim.mat');
 %% Plot camera trajectory in 3D world CS + cameras
 
 figure()
@@ -589,8 +625,7 @@ function energy = compute_energy(M_3D, m_2D, camera_params, theta)
 %COMPUTE_ENERGY Summary of this function goes here
 %   Detailed explanation goes here
 
-R = rotationVectorToMatrix([theta(1); theta(2); theta(3)]);
-t = [theta(4); theta(5); theta(6)];
+[R, t] = get_pose(theta);
 
 reprojected_points = project3d2image(M_3D',camera_params, R, t');
 
@@ -599,6 +634,12 @@ reprojected_points = project3d2image(M_3D',camera_params, R, t');
 % calc e_init
 energy = sum(Tukey(e ./ sigma));
 end
+
+function [R, t] = get_pose(theta)
+    R = rotationVectorToMatrix([theta(1); theta(2); theta(3)]);
+    t = [theta(4); theta(5); theta(6)];
+end
+
 
 
 

@@ -1,3 +1,6 @@
 *.asv
 *.mat
+*.bak
 workspace_vars.mat
+
+local_only/
