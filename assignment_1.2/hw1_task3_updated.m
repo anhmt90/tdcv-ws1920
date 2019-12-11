@@ -405,6 +405,20 @@ disp(error)
 
 % TODO: Estimate ATE and RPE for validation and test sequences
 
+fileID = fopen('bonus_trajectories.txt','w');
+
+for h = 1:num_files
+    
+    quaternions = rot_quaternions(cam_in_world_orientations(:,:,h));
+    timestamp = 86400*(datenum(now) - datenum('01-Jan-1970 00:00:00') - 1/24);
+    fprintf(fileID, '%f %f %f %f %f %f %f %f\r\n', timestamp,...
+        cam_in_world_locations(:,1,h), cam_in_world_locations(:,2,h), cam_in_world_locations(:,3,h),...
+        quaternions(1), quaternions(2), quaternions(3), quaternions(4));
+
+end
+
+
+
 
 
 %%
