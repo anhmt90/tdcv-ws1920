@@ -58,9 +58,6 @@ cam_in_world_locations = zeros(1,3,num_files);
 %  | _ \_  _ _ _   / __|_ _| __|_   _|
 %  |   / || | ' \  \__ \| || _|  | |
 %  |_|_\\_,_|_||_| |___/___|_|   |_|
-% You will need vl_sift() and vl_ubcmatch() functions
-% download vlfeat (http://www.vlfeat.org/download.html) and unzip it somewhere
-% Don't forget to add vlfeat folder to MATLAB path
 
 % Place SIFT keypoints and corresponding descriptors for all images here
 rerun_sift = 0;
@@ -93,93 +90,9 @@ else
     save('sift_keypoints.mat', 'keypoints')
 end
 
-% Initialization: Compute camera pose for the first image
-%              _      _    _
-%   _ __  __ _| |_ __| |_ (_)_ _  __ _
-%  | '  \/ _` |  _/ _| ' \| | ' \/ _` |
-%  |_|_|_\__,_|\__\__|_||_|_|_||_\__, |
-%                                |___/
-%   _    _     _                                  _     _
-%  / |__| |_  (_)_ __  __ _   ___   _ __  ___  __| |___| |
-%  | (_-<  _| | | '  \/ _` | |___| | '  \/ _ \/ _` / -_) |
-%  |_/__/\__| |_|_|_|_\__, |       |_|_|_\___/\__,_\___|_|
-%                     |___/
-% As the initialization step for tracking
-% you need to compute the camera pose for the first image
-% The first image and it's camera pose will be your initial frame
-% and initial camera pose for the tracking process
-
-% You can use estimateWorldCameraPose() function or your own implementation
-% of the PnP+RANSAC from previous tasks
-
-% You can get correspondences for PnP+RANSAC either using your SIFT model from the previous tasks
-% or by manually annotating corners (e.g. with mark_images() function)
-
-
-% TODO: Estimate camera position for the first image
-% 
-% load('sift_model.mat', 'model');
-% 
-% threshold_ubcmatch = 3.5;
-% sift_matches = cell(1,1);
-% sift_matches{1} = vl_ubcmatch(descriptors{1}, model.descriptors, threshold_ubcmatch);
-% 
-% figure
-% % Plot the image and the matched points on top.
-% imshow (char(Filenames(1)));
-% title('Matched points between model and 1st frame')
-% hold on;
-% % Visualize the matched points of the image
-% vl_plotframe(keypoints{1}(:,sift_matches{1}(1,:)), 'linewidth',2);
-% %plot (keypoints{h}(1, sift_matches{h}(1,:)), keypoints{h}(2, sift_matches{h}(1,:)), 'r*');
-% hold off;
-
-%=======================================================
-%            _     _      _ _
-%   __ _ ___| |_  (_)_ _ (_) |_   _ __  ___ ______
-%  / _` / -_)  _| | | ' \| |  _| | '_ \/ _ (_-< -_)
-%  \__, \___|\__| |_|_||_|_|\__| | .__/\___/__|___|
-%  |___/                         |_|
-%   ___      ___     _     ___    _   _  _ ___   _   ___
-%  | _ \_ _ | _ \  _| |_  | _ \  /_\ | \| / __| /_\ / __|
-%  |  _/ ' \|  _/ |_   _| |   / / _ \| .` \__ \/ _ \ (__
-%  |_| |_||_|_|     |_|   |_|_\/_/ \_\_|\_|___/_/ \_\___|
-
-% cam_in_world_orientations = zeros(3,3);
-% cam_in_world_locations = zeros(1,3);
-% best_inliers_set = cell(1);
-% 
-% init_world_orientations = zeros(3,3);
-% init_world_locations = zeros(1,3);
-% 
-% 
-% ransac_iterations = 1000; %input('Please select the number of iterations:','s');
-% threshold_ransac = 10; %input('Please select the threshold for RANSAC method:','s');
-% 
-% [best_inliers_set, max_num_inliers] = ransac_function(ransac_iterations, threshold_ransac, sift_matches{1}, keypoints{1}, model.coord3d, camera_params);
-% 
-% % Take the indexes of the inliers
-% inliers_2Dimage = sift_matches{1}(1,best_inliers_set);
-% inliers_3Dmodel = sift_matches{1}(2,best_inliers_set);
-% 
-% 
-% % Get the 2D and 3D coordinates for the inliers
-% image_points = [keypoints{1}(1,inliers_2Dimage); keypoints{1}(2,inliers_2Dimage)]';
-% world_points = model.coord3d(inliers_3Dmodel,:);
-% 
-% [init_orientation, init_location] = estimateWorldCameraPose(image_points, world_points, camera_params, 'MaxReprojectionError', 10000);
-% 
-% cam_in_world_orientations(:,:, 1) = init_orientation;
-% cam_in_world_locations(:,:, 1) = init_location;
-
 %% Initialize Pose of First image with Labeled corners for better initialization
 
 % Label images
-% You can use this function to label corners of the model on all images
-% This function will give an array with image coordinates for all points
-% Be careful that some points may not be visible on the image and so this
-% will result in NaN values in the output array
-% Don't forget to filter NaNs later
 num_points = 8;
 relabel = 0;
  
@@ -214,8 +127,6 @@ world_points(index, :) = [];
 
 [cam_in_world_orientations(:,:,1),cam_in_world_locations(:,:,1)] = estimateWorldCameraPose(image_points, world_points, camera_params, 'MaxReprojectionError', max_reproj_err);
 
-
-
 % Visualise the pose for the initial frame
 edges = [[1, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 7]
     [2, 4, 5, 3, 6, 4, 7, 8, 6, 8, 7, 8]];
@@ -235,37 +146,9 @@ save('workspace_vars.mat')
 % load('workspace_vars.mat')
 %% IRLS nonlinear optimisation
 
-% Now you need to implement the method of iteratively reweighted least squares (IRLS)
-% to optimise reprojection error between consecutive image frames
-
-% Method steps:
-% 1) Back-project SIFT keypoints from the initial frame (image i) to the object using the
-% initial camera pose and the 3D ray intersection code from the task 1.
-% This will give you 3D coordinates (in the world coordinate system) of the
-% SIFT keypoints from the initial frame (image i) that correspond to the object
-
-% 2) Find matches between descriptors of back-projected SIFT keypoints from the initial frame (image i) and the
-% SIFT keypoints from the subsequent frame (image i+1) using vl_ubcmatch() from VLFeat library
-% 3) Project back-projected SIFT keypoints onto the subsequent frame (image i+1) using 3D coordinates from the
-% step 1 and the initial camera pose
-% 4) Compute the reprojection error between 2D points of SIFT
-% matches for the subsequent frame (image i+1) and 2D points of projected matches
-% from step 3
-% 5) Implement IRLS: for each IRLS iteration compute Jacobian of the reprojection error with respect to the pose
-% parameters and update the camera pose for the subsequent frame (image i+1)
-% 6) Now the subsequent frame (image i+1) becomes the initial frame for the
-% next subsequent frame (image i+2) and the method continues until camera poses for all
-% images are estimated
-
-% We suggest you to validate the correctness of the Jacobian implementation
-% either using Symbolic toolbox or finite differences approach
-
-% TODO: Implement IRLS method for the reprojection error optimisation
-% You can start with these parameters to debug your solution
-% but you should also experiment with their different values
 threshold_irls = 0.005; % update threshold for IRLS
-max_iter = 30; % number of iterations
-threshold_ubcmatch = 6; % matching threshold for vl_ubcmatch()
+max_iter = 50; % number of iterations
+threshold_ubcmatch = 2.5; % matching threshold for vl_ubcmatch()
 
 
 for i=1:(num_files-1)
@@ -327,46 +210,11 @@ for i=1:(num_files-1)
                 backProjected_point.descriptors = [backProjected_point.descriptors descriptors{i}(:, siftpoint_)];
                 %disp(xcoor);
             end
-        end
-        
+        end       
     end
-    
-    
-    
-    % Images to check if the points that are said to belong to the model
-    % are inside the box in each image
-%     figure(1)
-%     imshow(char(Filenames(i)), 'InitialMagnification', 'fit')
-%     title('SIFT points intersecting with the 3D model when backprojected')
-%     hold on;
-%     scatter(keypoint_3Dmodel(1,:),keypoint_3Dmodel(2,:),'bo')
-%     hold off;
-    
-    %%%%%%%%%%%%%
-    % 2) Find matches between SIFT keypoints from the initial frame (image 1)
-    % that have intersected with the 3D model and the keypoints of the subsequent frame (image 2)
-    
-%     threshold_ubcmatch = 2.5;
     
     % Calculate the matches
     sift_matches{i+1} = vl_ubcmatch(backProjected_point.descriptors, descriptors{i+1}, threshold_ubcmatch);
-    
-    % sift_matches{2}(1,:) --> sift matches from the previous image, out of the ones that were
-    % backprojected to the model
-    % sift_matches{2}(2,:) ---> sift matches in the subsequent frame
-    
-    
-    
-%     figure(2)
-%     % Plot the image and the matched points on top.
-%     imshow (char(Filenames(i+1)));
-%     title('Matched SIFT points from current frame (i+1) on top of the current image')
-%     hold on;
-%     % Visualize the matched points on the frame we are currently trying to
-%     % estimate the pose i+1
-%     vl_plotframe(keypoints{i+1}(:,sift_matches{i+1}(2,:)), 'linewidth',2)
-%     %plot (keypoints{h}(1, sift_matches{h}(1,:)), keypoints{h}(2, sift_matches{h}(1,:)), 'r*');
-%     hold off;
     
     %================================================
     %   ___                   _        _   _
@@ -380,10 +228,9 @@ for i=1:(num_files-1)
     % Get the 3D coordinates of the backprojected points coming from the
     % initial frame
     backProjectedPoints_3Dcoord = backProjected_point.coord3d(sift_matches{i+1}(1,:),:);
-    
+
     % Project match points from 3D model to the current frame (i+1) (2D image)
-    reprojected_points = project3d2image(backProjectedPoints_3Dcoord',camera_params, R, t);
-%     reprojected_points = worldToImage(camera_params, R, t, backProjectedPoints_3Dcoord);
+    reprojected_points_prev = project3d2image(backProjectedPoints_3Dcoord',camera_params, R, t);
 %     reprojected_points = reprojected_points.';
     %========================================================
     %   ___      _ _   _      _   ___
@@ -394,53 +241,30 @@ for i=1:(num_files-1)
     % matches for the subsequent frame (image i+1) and from reprojected matches
     % from step 3
     image_points = [keypoints{i+1}(1,sift_matches{i+1}(2,:));keypoints{i+1}(2,sift_matches{i+1}(2,:))];
+    [init_orientations,init_locations,inlieridx,~] = estimateWorldCameraPose(image_points', backProjectedPoints_3Dcoord, ...
+        camera_params, 'MaxReprojectionError', 20);
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-%     save('workspace_vars_debug.mat')
-%     break;
-    
-    % Calculate the error of reprojected the points
-    %     distance_reprojection = pdist2(reprojected_points',image_points');
-    
-    % We take the diagonal because pdist2 gets the distance between all
-    % points to each other, and we only need each point to eachself.
-    %     residuals = diag(distance_reprojection);
-    %     energy = sum(residuals' * residuals);
-    
+    R = init_orientations;
+    t = init_locations;
+
+    % Project match points from 3D model to the current frame (i+1) (2D image)
+    reprojected_points = project3d2image(backProjectedPoints_3Dcoord',camera_params, R, t);
+
     % Figure to see the comparison between the points that were matched
     % between the SIFT points of the previous and current frame, vs the
     % reprojected matched points from the 3D model.
-    
-    
-%     figure(i+1)
+        
+%     figure(3)
 %     imshow(char(Filenames(i+1)))
 %     title(['Frame ', num2str(i+1), ' - Reprojected points from 3D model vs Matched points'])
 %     hold on;
+%     scatter(reprojected_points_prev(1,:)',reprojected_points_prev(2,:)','g*')    
 %     scatter(reprojected_points(1,:)',reprojected_points(2,:)','rx')
 %     scatter(image_points(1,:)',image_points(2,:)','bo')
 %     legend('Reprojected points','2D correspondences with previous image')
 %     hold off;
-    
+
+
     %=======================================================================
     %    ___                     _          _____           _    _
     %   / __|___ _ __  _ __ _  _| |_ ___   _ | |__ _ __ ___| |__(_)__ _ _ _
@@ -449,10 +273,7 @@ for i=1:(num_files-1)
     %                 |_|
     % 5) Compute Jacobian of the reprojection error with respect to the pose
     % parameters and apply IRLS to iteratively update the camera pose for the subsequent frame (image i+1)
-    
-    %%%%%%%%%%%%%
-    %Symbolic Method
-    % Rotation parameters (given in Exponential Maps)
+
     rotationVector = rotationMatrixToVector(R);
     
     % Jacobian of the reprojection error with respect to the pose
@@ -467,7 +288,7 @@ for i=1:(num_files-1)
     theta = [rotationVector, t].';
     
     iter = 0;
-    lambda = 0.001;
+    lambda = 0.000001;
     u = threshold_irls + 1;
     
     while iter < max_iter && u > threshold_irls
@@ -475,17 +296,11 @@ for i=1:(num_files-1)
         energy = compute_energy(backProjectedPoints_3Dcoord, image_points.', camera_params, theta);
         W = compute_W(e ./ sigma);
         
-        % the Jacobian
+        % Finite differences
+        J = Jacob_fd(camera_params, rotationVector, t, backProjectedPoints_3Dcoord);
+        % Symbolic Jacobian
 %         J = Jacobian_function(backProjectedPoints_3Dcoord, image_points.',...
 %             camera_params, t, rotationVector);
-
-
-         J = Jacobian_function2(backProjectedPoints_3Dcoord, image_points.',...
-             camera_params, t, rotationVector);
-         
-%         J = get_Jacobian(backProjectedPoints_3Dcoord, reprojected_points, theta, K); 
-        
-%        J = JacobianChainRule_function(camera_params.IntrinsicMatrix.', rotationVector, image_points, backProjectedPoints_3Dcoord.');
         
         delta = -inv(J' * W * J + lambda * eye(6)) * (J' * W * e);
         
@@ -566,46 +381,14 @@ end
     %  / ___ |/ / / / /_/ / /_/ / / /  __/ /     / /_/ / /_/ / /__/ /_/ / /_/ / / /_/ / / / /
     % /_/  |_/_/ /_/\____/\__/_/ /_/\___/_/      \____/\__,_/\___/\____/_.___/_/\__,_/_/ /_/ 
                                                                                        
-
-%Finite Diferences
-%First we parametrize the rotation using exponential maps
-rotationVector = rotationMatrixToVector(cam_in_world_orientations(:,:,i));
-
-%Initializing the Jacobian matrix
-J_fd = zeros(size(reprojected_points,2)*2,6);
-delta = 1e-9;
-
-for j=1:3
-    %We are going to calculate the Jacobian by central differences,
-    %which has the form of dF/dx = (F(x+delta)-F(x-delta))/2delta
-    diffVect = zeros(1,3);
-    diffVect(1,j) = 1;
-    diffVect = [rotationVector + delta * diffVect;rotationVector - delta * diffVect];
-    %Calculating partial derivatives wrt rotation params as:
-    reprojectedDiff_Pos = worldToImage(camera_params,rotationVectorToMatrix(diffVect(1,:)), cam_in_world_locations(:, :, i), backProjectedPoints_3Dcoord);
-    reprojectedDiff_Neg = worldToImage(camera_params,rotationVectorToMatrix(diffVect(2,:)), cam_in_world_locations(:, :, i), backProjectedPoints_3Dcoord);
-    %Partial derivative of the reprojected error (ReprojectedPoints -
-    %Matched Points). But since Matched Points do not depend on pose
-    %params, we can calculate it only as the difference between the
-    %reprojected differences
-    partialDev = (reprojectedDiff_Pos - reprojectedDiff_Neg);
-    partialDev = partialDev/(2*delta);
-    J_fd(1:2:end,j) = partialDev(:,1);
-    J_fd(2:2:end,j) = partialDev(:,2);
-    
-    %Here, We do the same wrt translation parameters
-    diffTrans = zeros(1,3);
-    diffTrans(1,j) = 1;
-    diffTrans = [cam_in_world_locations(:, :, i) + delta * diffTrans;cam_in_world_locations(:, :, i) - delta * diffTrans];
-    % Project match points from 3D model to the current frame (i+1) (2D image)
-    reprojectedDiff_Pos = worldToImage(camera_params,cam_in_world_orientations(:,:,i), diffTrans(1,:), backProjectedPoints_3Dcoord);
-    reprojectedDiff_Neg = worldToImage(camera_params,cam_in_world_orientations(:,:,i), diffTrans(2,:), backProjectedPoints_3Dcoord);
-    partialDev = (reprojectedDiff_Pos - reprojectedDiff_Neg);
-    partialDev = partialDev/(2*delta);
-    J_fd(1:2:end,j+3) = partialDev(:,1);
-    J_fd(2:2:end,j+3) = partialDev(:,2);
-end
-
+% Finite differences
+J_fd = Jacob_fd(camera_params, rotationVector, t, backProjectedPoints_3Dcoord);
+% Symbolic Jacobian
+J_Sym = Jacobian_function2(backProjectedPoints_3Dcoord, image_points.',...
+             camera_params, t, rotationVector);
+error = sum(abs(J_fd)-abs(J_Sym))/size(J_fd,1);
+disp(error)
+%%
 % Save estimated camera poses for the validation sequence using Vision TUM trajectory file
 % format: https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
 % Then estimate Absolute Trajectory Error (ATE) and Relative Pose Error for
@@ -621,6 +404,20 @@ end
 % approximately less than 1cm
 
 % TODO: Estimate ATE and RPE for validation and test sequences
+
+fileID = fopen('bonus_trajectories.txt','w');
+
+for h = 1:num_files
+    
+    quaternions = rot_quaternions(cam_in_world_orientations(:,:,h));
+    timestamp = 86400*(datenum(now) - datenum('01-Jan-1970 00:00:00') - 1/24);
+    fprintf(fileID, '%f %f %f %f %f %f %f %f\r\n', timestamp,...
+        cam_in_world_locations(:,1,h), cam_in_world_locations(:,2,h), cam_in_world_locations(:,3,h),...
+        quaternions(1), quaternions(2), quaternions(3), quaternions(4));
+
+end
+
+
 
 
 
@@ -664,7 +461,7 @@ c = 4.685; % Tukey constant
 w = e;
 
 w(e>c) = 0;
-w(e<c) = (1 - w(e<c).^2/c^2).^2;
+w(e<c) = (1 - (w(e<c)/c).^2).^2;
 W = diag(w);
 end
 
