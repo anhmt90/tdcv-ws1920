@@ -44,8 +44,8 @@ camera_params = cameraParameters('IntrinsicMatrix',[focalLength 0 0; ...
     'ImageSize',imageSize);
 
 % Get all filenames in images folder
-FolderInfo = dir(fullfile(valid_img_dir, '*.JPG'));
-Filenames = fullfile(valid_img_dir, {FolderInfo.name} );
+FolderInfo = dir(fullfile(test_img_dir, '*.JPG'));
+Filenames = fullfile(test_img_dir, {FolderInfo.name} );
 num_files = length(Filenames);
 
 % Place predicted camera orientations and locations in the world coordinate system for all images here
@@ -95,15 +95,17 @@ end
 % Label images
 num_points = 8;
 relabel = 0;
- 
-if isfile('labeled_points.mat') && ~relabel
-    load('labeled_points.mat');
+ labelsFile = 'testLabels.mat';
+%labelsFile = 'trainLabels.mat';
+if isfile(labelsFile) && ~relabel
+    load(labelsFile);
 else
     % We only need to do it for the first image
     labeled_points = mark_image(Filenames{1}, num_points);
     
     % Save labeled points and load them when you rerun the code to save time
-    save('labeled_points.mat', 'labeled_points');
+    save(labelsFile, 'labeled_points');
+    %save('trainLabels.mat', 'labeled_points');
 end
 
 % Call estimateWorldCameraPose to perform PnP
@@ -297,10 +299,10 @@ for i=1:(num_files-1)
         W = compute_W(e ./ sigma);
         
         % Finite differences
-        J = Jacob_fd(camera_params, rotationVector, t, backProjectedPoints_3Dcoord);
+%         J = Jacob_fd(camera_params, rotationVector, t, backProjectedPoints_3Dcoord);
         % Symbolic Jacobian
-%         J = Jacobian_function(backProjectedPoints_3Dcoord, image_points.',...
-%             camera_params, t, rotationVector);
+        J = Jacobian_function(backProjectedPoints_3Dcoord, image_points.',...
+            camera_params, t, rotationVector);
         
         delta = -inv(J' * W * J + lambda * eye(6)) * (J' * W * e);
         
@@ -350,17 +352,17 @@ for i=1:num_files
     title(sprintf('Image: %d', i))
     hold on
     % Ground Truth Bounding Boxes
-    points_gt = project3d2image(vertices',camera_params, gt_valid.orientations(:,:,i), gt_valid.locations(:, :, i));
+    %points_gt = project3d2image(vertices',camera_params, gt_valid.orientations(:,:,i), gt_valid.locations(:, :, i));
     % Predicted Bounding Boxes
     points_pred = project3d2image(vertices',camera_params, cam_in_world_orientations(:,:,i), cam_in_world_locations(:, :, i));
     for j=1:12
-        plot(points_gt(1, edges(:, j)), points_gt(2, edges(:,j)), 'color', 'g');
+        %plot(points_gt(1, edges(:, j)), points_gt(2, edges(:,j)), 'color', 'g');
         plot(points_pred(1, edges(:, j)), points_pred(2, edges(:,j)), 'color', 'b');
     end
     hold off;
     
-    filename = fullfile(test_results_dir, strcat('image', num2str(i), '.png'));
-    saveas(gcf, filename)
+    %filename = fullfile(test_results_dir, strcat('image', num2str(i), '.png'));
+    %saveas(gcf, filename)
 end
 
 %% =========================================================================================
@@ -405,13 +407,13 @@ disp(error)
 
 % TODO: Estimate ATE and RPE for validation and test sequences
 
-fileID = fopen('bonus_trajectories.txt','w');
+fileID = fopen('bonus_trajectories_test_images.txt','w');
 
 for h = 1:num_files
     
     quaternions = rot_quaternions(cam_in_world_orientations(:,:,h));
-    timestamp = 86400*(datenum(now) - datenum('01-Jan-1970 00:00:00') - 1/24);
-    fprintf(fileID, '%f %f %f %f %f %f %f %f\r\n', timestamp,...
+    %timestamp = 86400*(datenum(now) - datenum('01-Jan-1970 00:00:00') - 1/24);
+    fprintf(fileID, '%f %f %f %f %f %f %f %f\r\n', h+5,...
         cam_in_world_locations(:,1,h), cam_in_world_locations(:,2,h), cam_in_world_locations(:,3,h),...
         quaternions(1), quaternions(2), quaternions(3), quaternions(4));
 
@@ -488,40 +490,6 @@ function [R, t] = get_pose(theta)
     t = [theta(4); theta(5); theta(6)];
 end
 
-function skewMatrix = get_sym_matrix(v)
 
-skewMatrix = [0 -v(3) v(2) ; ...
-    v(3) 0 -v(1) ; ...
-    -v(2) v(1) 0];
-
-end
-
-function J = JacobianChainRule_function(intrinsicsMatrix, rotationVector, m_2D, M_3D)
-
-rotationMatrix = rotationVectorToMatrix(rotationVector);
-v = get_sym_matrix(rotationVector);
-I = eye(3);
-
-for j = 1:3
-    e = I(:,j);
-    %Compute derivative of R with respect to each one of the three rotating
-    %variables (v1 v2 v3)
-    dRdv{j} = ((rotationVector(j)*v + get_sym_matrix(cross(rotationVector, (I-rotationMatrix)*e)))/(norm(rotationVector)^2))*rotationMatrix;
-end
-
-dmtildedM = intrinsicsMatrix;
-
-for M = 1: numel(M_3D(1,:))
-    % Derivative of m with respect to mtilda.
-    dmdmtilde = [1 0 -m_2D(1,M) ; 0 1 -m_2D(2,M)];
-    
-    % Derivative of Mi with respect to p. p=[R1 R2 R3 t1 t2 t3]
-    dMdp = [dRdv{1}*M_3D(:, M) dRdv{2}*M_3D(:, M) dRdv{3}*M_3D(:, M) eye(3)];
-    
-    % Jacobian by chain rule
-    J(2*M-1:2*M,:) = dmdmtilde * dmtildedM * dMdp;
-end
-
-end
 
 
