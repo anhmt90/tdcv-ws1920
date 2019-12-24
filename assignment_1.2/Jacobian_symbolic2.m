@@ -1,6 +1,6 @@
 % Symbolic representation of the Jacobian computation
 % Export to function with:
-%   Jacobian_function = matlabFunction(J, 'File', 'Jacobian_function');
+%   Jacobian_function = matlabFunction(J, 'File', 'Jacobian_function4');
 
 syms u0 v0 f; % Camera intrinsics
 syms wx wy wz tx ty tz; % Camera extrinsics
@@ -14,6 +14,7 @@ K=[f 0 u0; 0 f v0; 0 0 1];
 theta=sqrt(wx^2+wy^2+wz^2);
 omega=  [0 -wz wy; wz 0 -wx; -wy wx 0;];
 R = eye(3) + (sin(theta)/theta)*omega + ((1-cos(theta))/theta^2)*(omega*omega);
+R = R'; % differs from Jacobian_function
 
 % Translation vector
 t=[tx ty tz].';
