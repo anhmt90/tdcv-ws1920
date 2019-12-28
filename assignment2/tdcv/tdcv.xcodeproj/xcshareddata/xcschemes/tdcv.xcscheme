@@ -36,7 +36,7 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       launchStyle = "0"
       useCustomWorkingDirectory = "YES"
-      customWorkingDirectory = "/Users/Fernando/Documents/TUM/Sem3/TDCV/tracking-detection-in-cv---ws1920/assignment2/tdcv"
+      customWorkingDirectory = "/Users/Maria/Desktop/TUM/3SEM/Tracking&amp;Detection/Exercises/GitLab/tracking-detection-in-cv---ws1920/assignment2/tdcv"
       ignoresPersistentStateOnLaunch = "NO"
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
