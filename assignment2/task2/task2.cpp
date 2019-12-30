@@ -81,8 +81,6 @@ void testForest(cv::Mat train_data, cv::Mat labels, cv::Mat test_data, cv::Mat t
 	auto ptr_training_data = ml::TrainData::create(train_data, ml::ROW_SAMPLE, labels);
 	auto ptr_test_data = ml::TrainData::create(test_data, ml::ROW_SAMPLE, test_labels);
 
-	auto vector = ptr_random_forest->calcError(ptr_test_data);
-
 	// Calls function to compute the error of the trained random forest
 	std::cout << "Evaluation for Random Forest" << std::endl;
 	performanceEval(ptr_random_forest, ptr_training_data, true);
