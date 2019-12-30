@@ -15,11 +15,19 @@ using namespace cv;
 
 namespace fs = std::experimental::filesystem;
 
-template<class ClassifierType>
-void performanceEval(cv::Ptr<ClassifierType> classifier, cv::Ptr<cv::ml::TrainData> data, bool test) {
+void performanceEval(cv::Ptr<cv::ml::DTrees> classifier, cv::Ptr<cv::ml::TrainData> data, bool test) {
 	cv::Mat output;
 	auto error = classifier->calcError(data, test, output);
-	std::cout << "Evaluation for Decision Tree" << std::endl;
+	if (test) {
+		std::cout << "Prediction error for training set: " << error << "%" << std::endl;
+	}
+	else {
+		std::cout << "Prediction error for test set: " << error << "%" << std::endl;
+	}
+};
+
+void performanceEval(cv::Ptr<RandomForest> classifier, cv::Ptr<cv::ml::TrainData> data, bool test) {
+	auto error = classifier->calcError(data);
 	if (test) {
 		std::cout << "Prediction error for training set: " << error << "%" << std::endl;
 	}
@@ -39,7 +47,7 @@ void testDTrees(cv::Mat train_data, cv::Mat labels, cv::Mat test_data, cv::Mat t
 	ptr_tree->setCVFolds(1); // If (CVFolds > 1) then prune the decision tree using K-fold cross-validation where K is equal to CVFolds
 	ptr_tree->setMaxCategories(num_classes); // Limits the number of categorical values before which the decision tree will precluster those categories
 	ptr_tree->setMaxDepth(10); // Tree will not exceed this depth, but may be less deep
-	ptr_tree->setMinSampleCount(40); // Do not split a node if there are fewer than this number of samples at that node
+	ptr_tree->setMinSampleCount(20); // Do not split a node if there are fewer than this number of samples at that node
 
 	// Creates training data from feature array
 	auto ptr_training_data = ml::TrainData::create(train_data, ml::ROW_SAMPLE, labels);
@@ -49,18 +57,19 @@ void testDTrees(cv::Mat train_data, cv::Mat labels, cv::Mat test_data, cv::Mat t
 	ptr_tree->train(ptr_training_data);
 
 	// Calls function to compute the error of the trained decision tree
-	performanceEval<cv::ml::DTrees>(ptr_tree, ptr_training_data, true);
-	performanceEval<cv::ml::DTrees>(ptr_tree, ptr_test_data, false);
+	std::cout << "Evaluation for Decision Tree" << std::endl;
+	performanceEval(ptr_tree, ptr_training_data, true);
+	performanceEval(ptr_tree, ptr_test_data, false);
 }
 
 void testForest(cv::Mat train_data, cv::Mat labels, cv::Mat test_data, cv::Mat test_labels) {
 
 	// Configuration of runtime parameters
-	int treeCount = 10;
-	int CVFolds = 1;
-	int maxCategories = 6;
-	int maxDepth = 10;
-	int minSampleCount = 40;
+	int treeCount = 32; // Number of trees making up the forest
+	int CVFolds = 1; // If (CVFolds > 1) then prune the decision tree using K-fold cross-validation where K is equal to CVFolds
+	int maxCategories = 6; // Limits the number of categorical values before which the decision tree will precluster those categories
+	int maxDepth = 10; // Tree will not exceed this depth, but may be less deep
+	int minSampleCount = 20; // Do not split a node if there are fewer than this number of samples at that node
 
 	// Initializing random forest with runtime parameters
 	std::shared_ptr<RandomForest> ptr_random_forest(new RandomForest(treeCount, maxDepth, CVFolds, minSampleCount, maxCategories));
@@ -72,9 +81,12 @@ void testForest(cv::Mat train_data, cv::Mat labels, cv::Mat test_data, cv::Mat t
 	auto ptr_training_data = ml::TrainData::create(train_data, ml::ROW_SAMPLE, labels);
 	auto ptr_test_data = ml::TrainData::create(test_data, ml::ROW_SAMPLE, test_labels);
 
+	auto vector = ptr_random_forest->calcError(ptr_test_data);
+
 	// Calls function to compute the error of the trained random forest
-	//performanceEval<RandomForest>(ptr_random_forest, ptr_training_data, true);
-	//performanceEval<RandomForest>(ptr_random_forest, ptr_test_data, false);
+	std::cout << "Evaluation for Random Forest" << std::endl;
+	performanceEval(ptr_random_forest, ptr_training_data, true);
+	performanceEval(ptr_random_forest, ptr_test_data, false);
 }
 
 
@@ -177,7 +189,7 @@ int main() {
 
 	std::cout << featsImages.rows << std::endl;
 	//cout << labels << endl;
-	//testDTrees(featsImages, labels, featsTestImages, labelsTest);
+	testDTrees(featsImages, labels, featsTestImages, labelsTest);
 	testForest(featsImages, labels, featsTestImages, labelsTest);
 	// TEST THE DECISION TREE ARCHITECTURE AND THE RANDOM FOREST //
 	return 0;

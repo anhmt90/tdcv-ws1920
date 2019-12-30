@@ -89,7 +89,7 @@ void RandomForest::train(const cv::Mat train_data, const cv::Mat train_labels)
 	}
 }
 
-void RandomForest::calcError(cv::Ptr<cv::ml::TrainData> data, bool test)
+float RandomForest::calcError(cv::Ptr<cv::ml::TrainData> data)
 {
 	cv::Mat output, output_mat;
 	for (uint treeIdx = 0; treeIdx < mTreeCount; treeIdx++) {
@@ -97,7 +97,45 @@ void RandomForest::calcError(cv::Ptr<cv::ml::TrainData> data, bool test)
 		output_mat.push_back(output.t());
 	}
 
-	// To do: Find majority vote over all predictions in output_mat and compute error
+	std::vector<int> majorityVotes;
+	for (uint i = 0; i < output_mat.cols; i++) {
+		std::vector<int> col_vector;
+		for (uint j = 0; j < output_mat.rows; j++) {
+			col_vector.push_back(output_mat.at<float>(j, i));
+		}
+		std::sort(col_vector.begin(), col_vector.end());
 
+		int max_count = 1, mode = col_vector[0], curr_count = 1;
+		for (int j = 1; j < col_vector.size(); j++) {
+			if (col_vector[j] == col_vector[j - 1]) {
+				curr_count++;
+				if (curr_count > max_count) {
+					max_count = curr_count;
+					mode = col_vector[j - 1];
+				}
+			}
+			else {
+				if (curr_count > max_count) {
+					max_count = curr_count;
+					mode = col_vector[j - 1];
+				}
+				curr_count = 1;
+			}
+
+		}
+		majorityVotes.push_back(mode);
+	}
+
+
+	int count_error = 0;
+	cv::Mat responses = data->getResponses();
+	for (int i = 0; i < majorityVotes.size(); i++) {
+		if (majorityVotes[i] != responses.at<signed int>(i)) {
+			count_error++;
+		}
+	}
+	float error = (float)count_error / (float)majorityVotes.size() * 100.0;
+
+	return error;
 }
 

@@ -26,7 +26,7 @@ public:
 
 	void train(const cv::Mat train_data, const cv::Mat train_labels);
 
-	void calcError(cv::Ptr<cv::ml::TrainData> data, bool test);
+	float calcError(cv::Ptr<cv::ml::TrainData> data);
 
 
 private:
