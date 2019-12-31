@@ -74,6 +74,30 @@ std::vector<int> RandomForest::GenerateRandomVector(int NumberCount) {
 	return values;
 }
 
+std::vector<int> RandomForest::ComputeMajorityVote(std::vector<int> predictions) {
+	std::sort(predictions.begin(), predictions.end());
+
+	int max_count = 1, mode = predictions[0], curr_count = 1;
+	for (int j = 1; j < predictions.size(); j++) {
+		if (predictions[j] == predictions[j - 1]) {
+			curr_count++;
+			if (curr_count > max_count) {
+				max_count = curr_count;
+				mode = predictions[j - 1];
+			}
+		}
+		else {
+			if (curr_count > max_count) {
+				max_count = curr_count;
+				mode = predictions[j - 1];
+			}
+			curr_count = 1;
+		}
+	}
+	std::vector<int> majorityVote = { mode, max_count };
+	return majorityVote;
+}
+
 void RandomForest::train(const cv::Mat train_data, const cv::Mat train_labels)
 {
 	for (uint treeIdx = 0; treeIdx < mTreeCount; treeIdx++) {
@@ -89,53 +113,34 @@ void RandomForest::train(const cv::Mat train_data, const cv::Mat train_labels)
 	}
 }
 
-float RandomForest::calcError(cv::Ptr<cv::ml::TrainData> data)
-{
+std::vector<std::vector<int>> RandomForest::predict(const cv::Mat data) {
 	cv::Mat output, output_mat;
 	for (uint treeIdx = 0; treeIdx < mTreeCount; treeIdx++) {
-		mTrees[treeIdx]->calcError(data, false, output);
+		mTrees[treeIdx]->predict(data, output);
 		output_mat.push_back(output.t());
 	}
 
-	std::vector<int> majorityVotes;
+	std::vector<std::vector<int>> majorityVotes;
 	for (uint i = 0; i < output_mat.cols; i++) {
 		std::vector<int> col_vector;
 		for (uint j = 0; j < output_mat.rows; j++) {
 			col_vector.push_back(output_mat.at<float>(j, i));
 		}
-		std::sort(col_vector.begin(), col_vector.end());
-
-		int max_count = 1, mode = col_vector[0], curr_count = 1;
-		for (int j = 1; j < col_vector.size(); j++) {
-			if (col_vector[j] == col_vector[j - 1]) {
-				curr_count++;
-				if (curr_count > max_count) {
-					max_count = curr_count;
-					mode = col_vector[j - 1];
-				}
-			}
-			else {
-				if (curr_count > max_count) {
-					max_count = curr_count;
-					mode = col_vector[j - 1];
-				}
-				curr_count = 1;
-			}
-
-		}
-		majorityVotes.push_back(mode);
+		majorityVotes.push_back(ComputeMajorityVote(col_vector));
 	}
+	return majorityVotes;
+}
 
+float RandomForest::calcError(const cv::Mat data, const cv::Mat labels)
+{
+	auto majorityVotes = predict(data);
 
 	int count_error = 0;
-	cv::Mat responses = data->getResponses();
 	for (int i = 0; i < majorityVotes.size(); i++) {
-		if (majorityVotes[i] != responses.at<signed int>(i)) {
+		if (majorityVotes[i][0] != labels.at<signed int>(i)) {
 			count_error++;
 		}
 	}
-	float error = (float)count_error / (float)majorityVotes.size() * 100.0;
-
-	return error;
+	return (float)count_error / (float)majorityVotes.size() * 100.0;
 }
 

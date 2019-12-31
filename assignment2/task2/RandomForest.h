@@ -23,10 +23,11 @@ public:
 	void setMaxCategories(int maxCategories);
 
 	std::vector<int> GenerateRandomVector(int NumberCount);
+	std::vector<int> ComputeMajorityVote(std::vector<int> unsortedPredictions);
 
 	void train(const cv::Mat train_data, const cv::Mat train_labels);
-
-	float calcError(cv::Ptr<cv::ml::TrainData> data);
+	std::vector<std::vector<int>> predict(const cv::Mat data);
+	float calcError(const cv::Mat data, const cv::Mat labels);
 
 
 private:

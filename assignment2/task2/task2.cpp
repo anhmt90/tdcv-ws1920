@@ -8,7 +8,7 @@
 
 
 
-#include "HOGDescriptor.h"
+//#include "HOGDescriptor.h"
 #include "RandomForest.h"
 
 using namespace cv;
@@ -26,8 +26,8 @@ void performanceEval(cv::Ptr<cv::ml::DTrees> classifier, cv::Ptr<cv::ml::TrainDa
 	}
 };
 
-void performanceEval(cv::Ptr<RandomForest> classifier, cv::Ptr<cv::ml::TrainData> data, bool test) {
-	auto error = classifier->calcError(data);
+void performanceEval(cv::Ptr<RandomForest> classifier, const cv::Mat data, const cv::Mat labels, bool test) {
+	auto error = classifier->calcError(data, labels);
 	if (test) {
 		std::cout << "Prediction error for training set: " << error << "%" << std::endl;
 	}
@@ -69,7 +69,7 @@ void testForest(cv::Mat train_data, cv::Mat labels, cv::Mat test_data, cv::Mat t
 	int CVFolds = 1; // If (CVFolds > 1) then prune the decision tree using K-fold cross-validation where K is equal to CVFolds
 	int maxCategories = 6; // Limits the number of categorical values before which the decision tree will precluster those categories
 	int maxDepth = 10; // Tree will not exceed this depth, but may be less deep
-	int minSampleCount = 20; // Do not split a node if there are fewer than this number of samples at that node
+	int minSampleCount = 15; // Do not split a node if there are fewer than this number of samples at that node
 
 	// Initializing random forest with runtime parameters
 	std::shared_ptr<RandomForest> ptr_random_forest(new RandomForest(treeCount, maxDepth, CVFolds, minSampleCount, maxCategories));
@@ -83,8 +83,8 @@ void testForest(cv::Mat train_data, cv::Mat labels, cv::Mat test_data, cv::Mat t
 
 	// Calls function to compute the error of the trained random forest
 	std::cout << "Evaluation for Random Forest" << std::endl;
-	performanceEval(ptr_random_forest, ptr_training_data, true);
-	performanceEval(ptr_random_forest, ptr_test_data, false);
+	performanceEval(ptr_random_forest, train_data, labels, true);
+	performanceEval(ptr_random_forest, test_data, test_labels, false);
 }
 
 
