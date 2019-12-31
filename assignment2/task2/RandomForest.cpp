@@ -58,6 +58,7 @@ void RandomForest::setMaxCategories(int maxCategories)
 }
 
 std::vector<int> RandomForest::GenerateRandomVector(int NumberCount) {
+	// Creates a random and uniform distributed subset  
 	std::random_device rd;
 	std::mt19937 gen(rd());
 
@@ -75,8 +76,10 @@ std::vector<int> RandomForest::GenerateRandomVector(int NumberCount) {
 }
 
 std::vector<int> RandomForest::ComputeMajorityVote(std::vector<int> predictions) {
+	// Sorts vector of predictions on one data sample
 	std::sort(predictions.begin(), predictions.end());
 
+	// Computes mode within sorted vector = most frequent vote
 	int max_count = 1, mode = predictions[0], curr_count = 1;
 	for (int j = 1; j < predictions.size(); j++) {
 		if (predictions[j] == predictions[j - 1]) {
@@ -100,26 +103,37 @@ std::vector<int> RandomForest::ComputeMajorityVote(std::vector<int> predictions)
 
 void RandomForest::train(const cv::Mat train_data, const cv::Mat train_labels)
 {
+	// Trains each individual decision tree with a random subset of the input training data
 	for (uint treeIdx = 0; treeIdx < mTreeCount; treeIdx++) {
-
+		// Gets index vector that corresponds to a random subset
 		auto rd = GenerateRandomVector(train_data.rows);
 		cv::Mat rd_train_data, rd_train_labels;
+		// Creates random subset of training data
 		for (int i = 0; i < rd.size(); i++) {
 			rd_train_data.push_back(train_data.row(rd[i]));
 			rd_train_labels.push_back(train_labels.row(rd[i]));
 		}
+		// Packages up training data along with training labels 
 		auto ptr_training_data = cv::ml::TrainData::create(rd_train_data, cv::ml::ROW_SAMPLE, rd_train_labels);
+		// Uses packaged training data to train each individual decision tree
 		mTrees[treeIdx]->train(ptr_training_data);
 	}
 }
 
 std::vector<std::vector<int>> RandomForest::predict(const cv::Mat data) {
 	cv::Mat output, output_mat;
+	// Creates a prediction matrix for the random forest, where each row corresponds to a single tree
+	// and each column to a data sample
 	for (uint treeIdx = 0; treeIdx < mTreeCount; treeIdx++) {
+		// Returns the leaf node of a decision tree corresponding to the input vector
 		mTrees[treeIdx]->predict(data, output);
+		// Adds row vector (output.t()) of predictions to matrix (output_mat)
 		output_mat.push_back(output.t());
 	}
 
+	// Creates a vector containing the predicted class for each data sample and the number of trees
+	// that voted for that particular sample: { class, #votes }
+	// majorityVotes corresponds to an nx2 array
 	std::vector<std::vector<int>> majorityVotes;
 	for (uint i = 0; i < output_mat.cols; i++) {
 		std::vector<int> col_vector;
@@ -133,8 +147,10 @@ std::vector<std::vector<int>> RandomForest::predict(const cv::Mat data) {
 
 float RandomForest::calcError(const cv::Mat data, const cv::Mat labels)
 {
+	// Gets majority votes for input data
 	auto majorityVotes = predict(data);
 
+	// Compares majority votes with labels and calculates error based on wrong predictions
 	int count_error = 0;
 	for (int i = 0; i < majorityVotes.size(); i++) {
 		if (majorityVotes[i][0] != labels.at<signed int>(i)) {
