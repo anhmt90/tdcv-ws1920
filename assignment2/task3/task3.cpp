@@ -51,8 +51,8 @@ void PR_curve(vector<Preds> predictions)
     
     vector<float> precVect;
     vector<float> recallVect;
-    int correct;
-    int incorrect;
+    float correct;
+    float incorrect;
     
     for (float thres=0; thres < 1; thres += 0.1) {
         correct = 0;
@@ -67,10 +67,10 @@ void PR_curve(vector<Preds> predictions)
             }
         }
         
-        precVect.push_back(correct / predictions.size());
+        precVect.push_back(correct / float(predictions.size()));
         cout << "Precision Value ..." << precVect.back() << std::endl;
         
-        recallVect.push_back(correct / (3 * 43)); // Each test image has 3 objects;
+        recallVect.push_back(correct / float(3 * 43)); // Each test image has 3 objects;
         cout << "Recall Value ..." << recallVect.back() << std::endl;
     }
     
@@ -488,7 +488,7 @@ int main() {
 	Ptr<RandomForest> rf_classifier = train_random_forest(hog_features_train, labels_train);
 
     vector<Preds> predictions;
-    predictions = perform(rf_classifier, false);
+    predictions = perform(rf_classifier, true);
     PR_curve(predictions);
 	return 0;
 }
