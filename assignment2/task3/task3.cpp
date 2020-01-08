@@ -32,11 +32,66 @@ const uint NUM_TREES = 128;
 const uint BACKGROUND_CLASS = 3;
 
 struct BBox {
-	Rect rect;
-	int num_vote;
-	int class_;
-	float confidence;
+    Rect rect;
+    int num_vote;
+    int class_;
+    float confidence;
 };
+
+struct Preds {
+    Rect rect;
+    int class_;
+    float IoU_score;
+};
+
+
+void PR_curve(vector<Preds> predictions)
+{
+    cout << "Calculating PRECISSION and RECALL ..." << std::endl;
+    
+    vector<float> precVect;
+    vector<float> recallVect;
+    int correct;
+    int incorrect;
+    
+    for (float thres=0; thres < 1; thres += 0.1) {
+        correct = 0;
+        incorrect = 0;
+        
+        for (int i = 0; i<predictions.size(); i++) {
+            if (predictions[i].IoU_score >= thres) {
+                correct++;
+            }
+            else{
+                incorrect++;
+            }
+        }
+        
+        precVect.push_back(correct / predictions.size());
+        cout << "Precision Value ..." << precVect.back() << std::endl;
+        
+        recallVect.push_back(correct / (3 * 43)); // Each test image has 3 objects;
+        cout << "Recall Value ..." << recallVect.back() << std::endl;
+    }
+    
+    // Export to csv precision & recall values
+    cout << "Exporting to csv ..." << std::endl;
+    
+    ofstream precfile;
+    precfile.open ("precision_example.csv");
+    for (int n = 0; n <= precVect.size(); n++) {
+        precfile << precVect[n] << endl;
+        
+    }
+    precfile.close();
+    
+    ofstream recallfile;
+    recallfile.open ("recall_example.csv");
+    for (int n = 0; n <= precVect.size(); n++) {
+        recallfile << recallVect[n] << endl;
+    }
+    recallfile.close();
+}
 
 
 float closest_power_2(int x)
@@ -44,6 +99,33 @@ float closest_power_2(int x)
 	return pow(2, round(log(x) / log(2)));
 }
 
+float compute_IoU(BBox best_box, vector<BBox> gt_box)
+{
+    // Determine the (x,y)-coordinates of the intersection rectangle
+    int idx = best_box.class_;
+    
+    int w_intersection = min(best_box.rect.x + best_box.rect.width, gt_box[idx].rect.x + gt_box[idx].rect.width) - max(best_box.rect.x,gt_box[idx].rect.x);
+    
+    int h_intersection = min(best_box.rect.y + best_box.rect.height, gt_box[idx].rect.y + gt_box[idx].rect.height) - max(best_box.rect.y,gt_box[idx].rect.y);
+    
+    if (w_intersection <= 0 || h_intersection <= 0){
+        return 0;
+    }
+        
+    // Compute the area of the intersection rectangle
+    float interArea = w_intersection * h_intersection;
+    
+    // Compute the area of both the prediction and ground-truth rectangles
+    float predArea = best_box.rect.width * best_box.rect.height;
+    float gtArea = gt_box[best_box.class_].rect.width * gt_box[best_box.class_].rect.height;
+    
+    float unionArea = predArea + gtArea - interArea;
+    
+    // Compute interction over union
+    float iou = interArea / unionArea;
+    
+    return iou;
+}
 
 Mat compute_HOG(Mat& img)
 {
@@ -248,105 +330,140 @@ vector<BBox> get_bboxes(const vector<Rect>& rects, const std::vector<std::vector
 	return bboxes;
 }
 
-void perform(Ptr<RandomForest>& rf_classifier, bool show_imgs = false)
+vector<Preds> perform(Ptr<RandomForest>& rf_classifier, bool show_imgs = false)
 {
-	setUseOptimized(true);
-	setNumThreads(4);
+    setUseOptimized(true);
+    setNumThreads(4);
 
-	const std::string dir("TEST");
-	fs::path full_path = (IMG_PATH / dir / FILES);
+    const std::string dir("TEST");
+    fs::path full_path = (IMG_PATH / dir / FILES);
 
-	std::vector<String> filenames;
-	glob(full_path.string(), filenames);
+    std::vector<String> filenames;
+    glob(full_path.string(), filenames);
+    
+    const std::string dir_gt("GT");
+    fs::path gt_path = (IMG_PATH / dir_gt / "*txt");
 
+    std::vector<String> gt_files;
+    glob(gt_path.string(), gt_files);
 
-	for (const auto& file : filenames) {
-		Mat img = imread(file);
+    int fid = 0;
+    vector<Preds> predictions;
+    
+    for (const auto& file : filenames) {
+        Mat img = imread(file);
 
-		/*SELECTIVE SEARCH*/
-		Ptr<SelectiveSearchSegmentation> ss_seg = createSelectiveSearchSegmentation();
-		ss_seg->setBaseImage(img);
-		ss_seg->switchToSelectiveSearchQuality();
+        /*SELECTIVE SEARCH*/
+        Ptr<SelectiveSearchSegmentation> ss_seg = createSelectiveSearchSegmentation();
+        ss_seg->setBaseImage(img);
+        ss_seg->switchToSelectiveSearchQuality();
 
-		std::vector<Rect> rects;
-		ss_seg->process(rects);
-		std::cout << "Total Number of Region Proposals for image " << file << ": " << rects.size() << std::endl;
+        std::vector<Rect> rects;
+        ss_seg->process(rects);
+        std::cout << "Total Number of Region Proposals for image " << file << ": " << rects.size() << std::endl;
 
-		Mat _img = img.clone();
+        Mat _img = img.clone();
 
-		/*PROPOSAL FILTERING*/
-		double img_area = static_cast<double>(_img.cols)* _img.rows;
-		double lower_bound = LOWER_PERCENT * img_area;
-		double upper_bound = UPPER_PERCENT * img_area;
+        /*PROPOSAL FILTERING*/
+        double img_area = static_cast<double>(_img.cols)* _img.rows;
+        double lower_bound = LOWER_PERCENT * img_area;
+        double upper_bound = UPPER_PERCENT * img_area;
 
-		auto iter = rects.begin();
-		while (iter != rects.end()) {
-			(*iter).height = (*iter).width = max((*iter).height, (*iter).width); // squaring all proposal windows
-
-
-			double area = static_cast<double>((*iter).width)* (*iter).height;
-			(area <= lower_bound || area >= upper_bound) ?
-				iter = rects.erase(iter) : ++iter;
-		}
-
-		std::cout << "Total Number of Region Proposals for image AFTER FILTERED " << file << ": " << rects.size() << std::endl;
-
-		/*PROPOSAL PREPROCESSING & RUNNING HOG*/
-		Mat HOG_features;
-		for (auto& rect : rects) {
-			Mat roi = get_padded_ROI(_img, rect);
-			Mat HOG_vector = compute_HOG(roi);
-
-			HOG_features.push_back(HOG_vector);
-		}
-		std::vector<std::vector<int>> votes = rf_classifier->predict(HOG_features);
-
-		assert(votes.size() == rects.size());
-
-		vector<BBox> bboxes = get_bboxes(rects, votes);
-		set<uint> classes;
-		for (const auto& cb : bboxes)
-			classes.insert(cb.class_);
+        auto iter = rects.begin();
+        while (iter != rects.end()) {
+            (*iter).height = (*iter).width = max((*iter).height, (*iter).width); // squaring all proposal windows
 
 
+            double area = static_cast<double>((*iter).width)* (*iter).height;
+            (area <= lower_bound || area >= upper_bound) ?
+                iter = rects.erase(iter) : ++iter;
+        }
 
-		/*NON-MAXIMUM SUPRESSION*/
-		const int& NUM_CLASSES = classes.size();
-		const float CONFIDENCE_THRESHOLD = 0.6F;
-		const float SUPPRESS_THRESHOLD = 0.2F;
+        std::cout << "Total Number of Region Proposals for image AFTER FILTERED " << file << ": " << rects.size() << std::endl;
+
+        /*PROPOSAL PREPROCESSING & RUNNING HOG*/
+        Mat HOG_features;
+        for (auto& rect : rects) {
+            Mat roi = get_padded_ROI(_img, rect);
+            Mat HOG_vector = compute_HOG(roi);
+
+            HOG_features.push_back(HOG_vector);
+        }
+        std::vector<std::vector<int>> votes = rf_classifier->predict(HOG_features);
+
+        assert(votes.size() == rects.size());
+
+        vector<BBox> bboxes = get_bboxes(rects, votes);
+        set<uint> classes;
+        for (const auto& cb : bboxes)
+            classes.insert(cb.class_);
+
+        
+
+        /*NON-MAXIMUM SUPRESSION*/
+        const int &NUM_CLASSES = classes.size();
+        const float CONFIDENCE_THRESHOLD = 0.6;
+        const float SUPPRESS_THRESHOLD = 0.2;
 
 
-		vector<vector<Rect>> rects_by_class(NUM_CLASSES);
-		vector<vector<float>> scores_by_class(NUM_CLASSES);
-		vector<vector<BBox>> bbox_by_class(NUM_CLASSES);
+        vector<vector<Rect>> rects_by_class(NUM_CLASSES);
+        vector<vector<float>> scores_by_class(NUM_CLASSES);
+        vector<vector<BBox>> bbox_by_class(NUM_CLASSES);
 
-		for (const auto& bbox : bboxes) {
-			rects_by_class[bbox.class_].push_back(bbox.rect);
-			scores_by_class[bbox.class_].push_back(bbox.confidence);
-			bbox_by_class[bbox.class_].push_back(bbox);
-		}
+        for (const auto& bbox : bboxes) {
+            rects_by_class[bbox.class_].push_back(bbox.rect);
+            scores_by_class[bbox.class_].push_back(bbox.confidence);
+            bbox_by_class[bbox.class_].push_back(bbox);
+        }
 
-		assert(rects_by_class.size() == scores_by_class.size() == bbox_by_class.size());
+        assert(rects_by_class.size() == scores_by_class.size() && bbox_by_class.size() == rects_by_class.size());
 
-		vector<BBox> best_bboxes;
-		for (uint i = 0; i < rects_by_class.size(); i++) {
-			assert(rects_by_class[i].size() == scores_by_class[i].size() == bbox_by_class[i].size());
+        vector<BBox> best_bboxes;
+        for (uint i = 0; i < rects_by_class.size(); i++) {
+            assert(rects_by_class[i].size() == scores_by_class[i].size() && bbox_by_class[i].size() == rects_by_class[i].size());
 
-			vector<int> nms_output_indices;
-			cv::dnn::NMSBoxes(rects_by_class[i], scores_by_class[i], CONFIDENCE_THRESHOLD, SUPPRESS_THRESHOLD, nms_output_indices);
+            vector<int> nms_output_indices;
+            cv::dnn::NMSBoxes(rects_by_class[i], scores_by_class[i], CONFIDENCE_THRESHOLD, SUPPRESS_THRESHOLD, nms_output_indices);
 
-			cout << "Number of best Region Proposals for class " << i << ": " << nms_output_indices.size() << endl;
-			for (const int& nms_indx : nms_output_indices) {
-				best_bboxes.push_back(bbox_by_class[i].at(nms_indx));
-			}
+            cout << "Number of best Region Proposals for class " << i << ": " << nms_output_indices.size() << endl;
+            for (const int& nms_indx : nms_output_indices) {
+                best_bboxes.push_back(bbox_by_class[i].at(nms_indx));
+            }
 
 
-		}
-		cout << "Total number of best Region Proposals: " << best_bboxes.size() << endl;
-
-		if (show_imgs)
-			show_imgs = draw_boxes(_img, best_bboxes);
-	}
+        }
+        cout << "Total number of best Region Proposals: "  << best_bboxes.size() << endl;
+        
+        //Read txt files to get bounding boxes ground truths for each image
+        vector<BBox> gt_boxes;
+        ifstream gt_file(gt_files[fid]);
+        string str;
+        while (getline(gt_file, str)){
+            istringstream iss(str);
+            vector<string> splitted((istream_iterator<string>(iss)),
+            istream_iterator<string>());
+            BBox cb;
+            cb.class_ = stoi(splitted[0]);
+            cb.rect.x = round((stoi(splitted[1]) + stoi(splitted[3]))/2.0);
+            cb.rect.y = round((stoi(splitted[2]) + stoi(splitted[4]))/2.0);
+            cb.rect.width = abs(stoi(splitted[1]) - stoi(splitted[3]));
+            cb.rect.height = abs(stoi(splitted[2]) - stoi(splitted[4]));
+            gt_boxes.push_back(cb);
+        }
+        for (int i=0; i<best_bboxes.size(); i++) {
+            Preds myPred;
+            myPred.rect = best_bboxes[i].rect;
+            myPred.class_ = best_bboxes[i].class_;
+            myPred.IoU_score = compute_IoU(best_bboxes[i], gt_boxes);
+            predictions.push_back(myPred);
+        }
+        fid++;
+        
+        if (show_imgs)
+            show_imgs = draw_boxes(_img, best_bboxes);
+    }
+    
+    return predictions;
 }
 
 
@@ -370,6 +487,8 @@ int main() {
 	prepare_train_features(hog_features_train, labels_train);
 	Ptr<RandomForest> rf_classifier = train_random_forest(hog_features_train, labels_train);
 
-	perform(rf_classifier, true);
+    vector<Preds> predictions;
+    predictions = perform(rf_classifier, false);
+    PR_curve(predictions);
 	return 0;
 }
