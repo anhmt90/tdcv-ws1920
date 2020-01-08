@@ -10,9 +10,10 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/ximgproc.hpp>
-
+#include <opencv2/core/utils/filesystem.hpp>
 
 #include "../task2/RandomForest.h"
+#include "DataAugmentation.hpp"
 
 using namespace std;
 using namespace cv;
@@ -20,10 +21,12 @@ using namespace cv::ximgproc::segmentation;
 namespace fs = std::filesystem;
 
 const fs::path IMG_PATH("data/task3/");
+const vector<string> TRAIN_SUBDIRS = { "00", "01", "02", "03" };
 const fs::path FILES("*jpg");
+const string AUGMENT_DIR = "augmented";
 
-const float LOWER_PERCENT = 0.01;
-const float UPPER_PERCENT = 0.25;
+const float LOWER_PERCENT = 0.01F;
+const float UPPER_PERCENT = 0.25F;
 
 const uint NUM_TREES = 128;
 const uint BACKGROUND_CLASS = 3;
@@ -72,11 +75,10 @@ void prepare_train_features(Mat& hog_features_train, Mat& labels_train)
 	const std::string dir("TRAIN");
 	cout << "Reading and processing of TRAIN data ..." << std::endl;
 
-	std::vector<std::string> train_subdirs = { "00", "01", "02", "03" };
-	for (const std::string subdir : train_subdirs)
+	for (const std::string& subdir : TRAIN_SUBDIRS)
 	{
-		cout << "Reading Images on subfolder " << subdir << std::endl;
-		fs::path full_path = (IMG_PATH / dir / subdir / FILES);
+		cout << "Reading Images in subfolder " << subdir << std::endl;
+		fs::path full_path = (IMG_PATH / dir / subdir / AUGMENT_DIR / FILES);
 
 		std::vector<String> filenames;
 		// OpenCV function which gives all files names in that directory
@@ -306,12 +308,12 @@ void perform(Ptr<RandomForest>& rf_classifier, bool show_imgs = false)
 		for (const auto& cb : bboxes)
 			classes.insert(cb.class_);
 
-		
+
 
 		/*NON-MAXIMUM SUPRESSION*/
-		const int &NUM_CLASSES = classes.size();
-		const float CONFIDENCE_THRESHOLD = 0.6;
-		const float SUPPRESS_THRESHOLD = 0.2;
+		const int& NUM_CLASSES = classes.size();
+		const float CONFIDENCE_THRESHOLD = 0.6F;
+		const float SUPPRESS_THRESHOLD = 0.2F;
 
 
 		vector<vector<Rect>> rects_by_class(NUM_CLASSES);
@@ -340,7 +342,7 @@ void perform(Ptr<RandomForest>& rf_classifier, bool show_imgs = false)
 
 
 		}
-		cout << "Total number of best Region Proposals: "  << best_bboxes.size() << endl;
+		cout << "Total number of best Region Proposals: " << best_bboxes.size() << endl;
 
 		if (show_imgs)
 			show_imgs = draw_boxes(_img, best_bboxes);
@@ -349,8 +351,22 @@ void perform(Ptr<RandomForest>& rf_classifier, bool show_imgs = false)
 
 
 int main() {
-	Mat hog_features_train, labels_train;
+	bool runAugmentation = 1;
+	if (runAugmentation) {
+		for (const std::string subdir : TRAIN_SUBDIRS) {
+			fs::path augmentInputPath = (IMG_PATH / "train" / subdir);
+			fs::path augmentOutputPath(augmentInputPath / AUGMENT_DIR);
 
+			if (fs::is_directory(augmentOutputPath) && fs::exists(augmentOutputPath))
+				fs::remove_all(augmentOutputPath);
+			
+			fs::create_directory(augmentOutputPath);
+			DataAugmentation augmentation(DataAugmentation(augmentInputPath, augmentOutputPath));
+			augmentation.augment();
+		}
+	}
+
+	Mat hog_features_train, labels_train;
 	prepare_train_features(hog_features_train, labels_train);
 	Ptr<RandomForest> rf_classifier = train_random_forest(hog_features_train, labels_train);
 
