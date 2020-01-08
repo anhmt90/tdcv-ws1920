@@ -22,8 +22,10 @@ public:
 	void setMinSampleCount(int minSampleCount);
 	void setMaxCategories(int maxCategories);
 
+	int getNumTree() const;
+
 	std::vector<int> GenerateRandomVector(int NumberCount);
-	std::vector<int> ComputeMajorityVote(std::vector<int> unsortedPredictions);
+	std::vector<int> compute_majority_votes(std::vector<int> unsortedPredictions);
 
 	void train(const cv::Mat train_data, const cv::Mat train_labels);
 	std::vector<std::vector<int>> predict(const cv::Mat data);
@@ -36,7 +38,7 @@ private:
 	int mCVFolds;
 	int mMinSampleCount;
 	int mMaxCategories;
-	// M-Trees for constructing thr forest
+	// M-Trees for constructing the forest
 	std::vector<cv::Ptr<cv::ml::DTrees>> mTrees;
 };
 

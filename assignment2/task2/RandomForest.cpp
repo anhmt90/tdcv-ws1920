@@ -57,6 +57,11 @@ void RandomForest::setMaxCategories(int maxCategories)
 		mTrees[treeIdx]->setMaxCategories(mMaxCategories);
 }
 
+int RandomForest::getNumTree() const 
+{
+	return mTreeCount;
+}
+
 std::vector<int> RandomForest::GenerateRandomVector(int NumberCount) {
 	// Creates a random and uniform distributed subset  
 	std::random_device rd;
@@ -75,7 +80,7 @@ std::vector<int> RandomForest::GenerateRandomVector(int NumberCount) {
 	return values;
 }
 
-std::vector<int> RandomForest::ComputeMajorityVote(std::vector<int> predictions) {
+std::vector<int> RandomForest::compute_majority_votes(std::vector<int> predictions) {
 	// Sorts vector of predictions on one data sample
 	std::sort(predictions.begin(), predictions.end());
 
@@ -140,7 +145,7 @@ std::vector<std::vector<int>> RandomForest::predict(const cv::Mat data) {
 		for (uint j = 0; j < output_mat.rows; j++) {
 			col_vector.push_back(output_mat.at<float>(j, i));
 		}
-		majorityVotes.push_back(ComputeMajorityVote(col_vector));
+		majorityVotes.push_back(compute_majority_votes(col_vector));
 	}
 	return majorityVotes;
 }
@@ -148,15 +153,15 @@ std::vector<std::vector<int>> RandomForest::predict(const cv::Mat data) {
 float RandomForest::calcError(const cv::Mat data, const cv::Mat labels)
 {
 	// Gets majority votes for input data
-	auto majorityVotes = predict(data);
+	std::vector<std::vector<int>> majorityVotes = predict(data);
 
 	// Compares majority votes with labels and calculates error based on wrong predictions
 	int count_error = 0;
-	for (int i = 0; i < majorityVotes.size(); i++) {
-		if (majorityVotes[i][0] != labels.at<signed int>(i)) {
+	for (int _class = 0; _class < majorityVotes.size(); _class++) {
+		if (majorityVotes[_class][0] != labels.at<signed int>(_class)) {
 			count_error++;
 		}
 	}
-	return (float)count_error / (float)majorityVotes.size() * 100.0;
+	return (static_cast<float>(count_error) / majorityVotes.size()) * 100.0;
 }
 
