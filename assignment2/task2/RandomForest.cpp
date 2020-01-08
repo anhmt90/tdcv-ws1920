@@ -63,22 +63,14 @@ int RandomForest::getNumTree() const
 }
 
 std::vector<int> RandomForest::GenerateRandomVector(int NumberCount) {
-	// Creates a random and uniform distributed subset  
-	std::random_device rd;
-	std::mt19937 gen(rd());
 
 	std::vector<int> values(NumberCount);
-	std::uniform_int_distribution<> dis(0, NumberCount - 1);
-	std::generate(values.begin(), values.end(), [&]() { return dis(gen); });
-	std::vector<int> v1(values.begin() + (rand() % (NumberCount / 2)), values.end() - (rand() % (NumberCount / 2)));
-	std::fill(values.begin(), values.end(), 0);
-
 	for (int i = 0; i < NumberCount; i++) {
-		values[i] = v1[rand() % (v1.size() - 1)];
+		values[i] = rand() % NumberCount;
 	}
-
 	return values;
 }
+
 
 std::vector<int> RandomForest::compute_majority_votes(std::vector<int> predictions) {
 	// Sorts vector of predictions on one data sample
