@@ -2,6 +2,8 @@
 #include <fstream>
 #include <filesystem>
 #include <math.h>
+#include <numeric>
+#include <array>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui.hpp>
@@ -26,7 +28,7 @@ const float UPPER_PERCENT = 0.25;
 const uint NUM_TREES = 128;
 const uint BACKGROUND_CLASS = 3;
 
-struct CandidateBox {
+struct BBox {
 	Rect rect;
 	int num_vote;
 	int class_;
@@ -100,12 +102,12 @@ void prepare_train_features(Mat& hog_features_train, Mat& labels_train)
 	cout << hog_features_train.rows << " rows of HOG features added to TRAIN data" << std::endl;
 }
 
-bool draw_boxes(Mat& img, const vector<CandidateBox>& candidate_boxes = vector<CandidateBox>())
+bool draw_boxes(Mat& img, const vector<BBox>& candidate_boxes = vector<BBox>())
 {
-	int numShowRects = 1000;
+	const uint numShowRects = 1000;
 	Mat _img = img.clone();
 	for (int i = 0; i < candidate_boxes.size(); i++) {
-		CandidateBox cb = candidate_boxes[i];
+		BBox cb = candidate_boxes[i];
 		if (i < numShowRects) {
 			Scalar color;
 			switch (cb.class_)
@@ -218,20 +220,30 @@ Ptr<RandomForest> train_random_forest(cv::Mat data, cv::Mat labels) {
 	return rf_classifier;
 }
 
-vector<CandidateBox> get_best_boxes(const vector<Rect>& rects, const std::vector<std::vector<int>>& votes, const vector<int>& best_box_indices)
+vector<int> get_seq(int start, int end) {
+	std::vector<int> vec(end);
+	std::iota(std::begin(vec), std::end(vec), start);
+	return vec;
+}
+
+vector<BBox> get_bboxes(const vector<Rect>& rects, const std::vector<std::vector<int>>& votes, const vector<int>& selected_indices = {})
 {
-	vector<CandidateBox> candidate_boxes;
-	for (const uint& indx : best_box_indices) {
-		CandidateBox cb;
+	assert(rects.size() == votes.size());
+	vector<int> indices = (selected_indices.size() == 0) ?
+		get_seq(0, rects.size()) : selected_indices;
+
+	vector<BBox> bboxes;
+	for (const uint& indx : indices) {
+		BBox cb;
 		cb.class_ = votes.at(indx).at(0);
 		if (cb.class_ == BACKGROUND_CLASS)
 			continue;
 		cb.num_vote = votes.at(indx).at(1);
 		cb.rect = rects.at(indx);
-		cb.confidence = cb.num_vote / NUM_TREES;
-		candidate_boxes.push_back(cb);
+		cb.confidence = static_cast<float>(cb.num_vote) / NUM_TREES;
+		bboxes.push_back(cb);
 	}
-	return candidate_boxes;
+	return bboxes;
 }
 
 void perform(Ptr<RandomForest>& rf_classifier, bool show_imgs = false)
@@ -287,30 +299,51 @@ void perform(Ptr<RandomForest>& rf_classifier, bool show_imgs = false)
 		}
 		std::vector<std::vector<int>> votes = rf_classifier->predict(HOG_features);
 
+		assert(votes.size() == rects.size());
+
+		vector<BBox> bboxes = get_bboxes(rects, votes);
+		set<uint> classes;
+		for (const auto& cb : bboxes)
+			classes.insert(cb.class_);
+
+		
 
 		/*NON-MAXIMUM SUPRESSION*/
+		const int &NUM_CLASSES = classes.size();
 		const float CONFIDENCE_THRESHOLD = 0.6;
-		const float SUPPRESS_THRESHOLD = 0.3;
+		const float SUPPRESS_THRESHOLD = 0.2;
 
 
-		vector<float> confidence_scores;
-		for (uint i = 0; i < votes.size(); i++) {
-			auto& vote = votes[i];
-			assert(vote.size == 2);
-			float confidence = static_cast<float>(vote.at(1)) / NUM_TREES;
-			confidence_scores.push_back(confidence);
+		vector<vector<Rect>> rects_by_class(NUM_CLASSES);
+		vector<vector<float>> scores_by_class(NUM_CLASSES);
+		vector<vector<BBox>> bbox_by_class(NUM_CLASSES);
+
+		for (const auto& bbox : bboxes) {
+			rects_by_class[bbox.class_].push_back(bbox.rect);
+			scores_by_class[bbox.class_].push_back(bbox.confidence);
+			bbox_by_class[bbox.class_].push_back(bbox);
 		}
 
-		vector<int> best_box_indices;
+		assert(rects_by_class.size() == scores_by_class.size() == bbox_by_class.size());
 
-		cv::dnn::NMSBoxes(rects, confidence_scores, CONFIDENCE_THRESHOLD, SUPPRESS_THRESHOLD, best_box_indices);
-		
-		vector<CandidateBox> best_boxes = get_best_boxes(rects, votes, best_box_indices);
-		cout << "Number of best Region Proposals: " << best_boxes.size() << endl;
-		
+		vector<BBox> best_bboxes;
+		for (uint i = 0; i < rects_by_class.size(); i++) {
+			assert(rects_by_class[i].size() == scores_by_class[i].size() == bbox_by_class[i].size());
 
-		if(show_imgs)
-			show_imgs =	draw_boxes(_img, best_boxes);
+			vector<int> nms_output_indices;
+			cv::dnn::NMSBoxes(rects_by_class[i], scores_by_class[i], CONFIDENCE_THRESHOLD, SUPPRESS_THRESHOLD, nms_output_indices);
+
+			cout << "Number of best Region Proposals for class " << i << ": " << nms_output_indices.size() << endl;
+			for (const int& nms_indx : nms_output_indices) {
+				best_bboxes.push_back(bbox_by_class[i].at(nms_indx));
+			}
+
+
+		}
+		cout << "Total number of best Region Proposals: "  << best_bboxes.size() << endl;
+
+		if (show_imgs)
+			show_imgs = draw_boxes(_img, best_bboxes);
 	}
 }
 
