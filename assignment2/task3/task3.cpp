@@ -78,7 +78,14 @@ void prepare_train_features(Mat& hog_features_train, Mat& labels_train)
 	for (const std::string& subdir : TRAIN_SUBDIRS)
 	{
 		cout << "Reading Images in subfolder " << subdir << std::endl;
-		fs::path full_path = (IMG_PATH / dir / subdir / AUGMENT_DIR / FILES);
+		fs::path full_path;
+
+		if (subdir.compare("03") == 0) {
+			full_path = (IMG_PATH / dir / subdir / FILES);
+		}
+		else {
+			full_path = (IMG_PATH / dir / subdir / AUGMENT_DIR / FILES);
+		}
 
 		std::vector<String> filenames;
 		// OpenCV function which gives all files names in that directory
@@ -129,16 +136,6 @@ bool draw_boxes(Mat& img, const vector<BBox>& candidate_boxes = vector<BBox>())
 		else
 			break;
 	}
-
-	imshow("Image with bounding boxes", _img);
-
-	int k = waitKey();
-	if (k == 113 || k == 27) {
-		cout << "Skip showing the remaining images" << endl;
-		return false;
-
-	}
-	return true;
 }
 
 
@@ -248,7 +245,7 @@ vector<BBox> get_bboxes(const vector<Rect>& rects, const std::vector<std::vector
 	return bboxes;
 }
 
-void perform(Ptr<RandomForest>& rf_classifier, bool show_imgs = false)
+void perform(Ptr<RandomForest>& rf_classifier)
 {
 	setUseOptimized(true);
 	setNumThreads(4);
@@ -344,8 +341,12 @@ void perform(Ptr<RandomForest>& rf_classifier, bool show_imgs = false)
 		}
 		cout << "Total number of best Region Proposals: " << best_bboxes.size() << endl;
 
-		if (show_imgs)
-			show_imgs = draw_boxes(_img, best_bboxes);
+
+		draw_boxes(_img, best_bboxes);
+		fs::path outPath = (full_path / "out/");
+		imwrite(outPath.string(), _img);
+		this_thread::sleep_for(chrono::nanoseconds(100));
+		cout << outPath.string() << " saved successfully" << endl;
 	}
 }
 
@@ -354,6 +355,9 @@ int main() {
 	bool runAugmentation = 1;
 	if (runAugmentation) {
 		for (const std::string subdir : TRAIN_SUBDIRS) {
+			if (subdir.compare("03") == 0)
+				continue;
+
 			fs::path augmentInputPath = (IMG_PATH / "train" / subdir);
 			fs::path augmentOutputPath(augmentInputPath / AUGMENT_DIR);
 
@@ -370,6 +374,6 @@ int main() {
 	prepare_train_features(hog_features_train, labels_train);
 	Ptr<RandomForest> rf_classifier = train_random_forest(hog_features_train, labels_train);
 
-	perform(rf_classifier, true);
+	perform(rf_classifier);
 	return 0;
 }
