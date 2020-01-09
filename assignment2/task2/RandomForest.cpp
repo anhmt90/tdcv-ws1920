@@ -1,11 +1,13 @@
 #include "RandomForest.h"
 
+using namespace std;
+
 RandomForest::RandomForest()
 {
 }
 
-RandomForest::RandomForest(int treeCount, int maxDepth, int CVFolds, int minSampleCount, int maxCategories)
-	:mTreeCount(treeCount), mMaxDepth(maxDepth), mCVFolds(CVFolds), mMinSampleCount(minSampleCount), mMaxCategories(maxCategories)
+RandomForest::RandomForest(int treeCount, int maxDepth, int CVFolds, int minSampleCount, int maxCategories, string name_ = "rf")
+	:mTreeCount(treeCount), mMaxDepth(maxDepth), mCVFolds(CVFolds), mMinSampleCount(minSampleCount), mMaxCategories(maxCategories), name(name_)
 {
 	// Creates vector of decision trees = random forest
 	for (uint treeIdx = 0; treeIdx < treeCount; treeIdx++) {
@@ -60,6 +62,21 @@ void RandomForest::setMaxCategories(int maxCategories)
 int RandomForest::getNumTree() const 
 {
 	return mTreeCount;
+}
+
+int RandomForest::getMaxDepth() const
+{
+	return mMaxDepth;
+}
+
+int RandomForest::getCVFolds() const
+{
+	return mCVFolds;
+}
+
+string RandomForest::getName() const
+{
+	return name;
 }
 
 std::vector<int> RandomForest::GenerateRandomVector(int NumberCount) {

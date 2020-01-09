@@ -181,7 +181,8 @@ void DataAugmentation::augment() {
 
 		/*ROTATE ONLY*/
 		refresh_img();
-		vector<int> angles = {0, 45, 90, 135, 180, 225, 270, 315 };
+		//vector<int> angles = {0, 45, 90, 135, 180, 225, 270, 315 };
+		vector<int> angles = {0, 45, 90, 180, 270, };
 
 		for (const auto& angle : angles) {
 			rotate(angle);
@@ -189,12 +190,12 @@ void DataAugmentation::augment() {
 		}
 
 		/*SCALE ONLY*/
-		refresh_img();
-		vector<float> scales = { 0.75, 1.0, 2.0 };
-		for (const float& scale : scales) {
-			rotate(0, scale);
-			save_img(fileName + get_scale_sign(scale) + EXT);
-		}
+		//refresh_img();
+		//vector<float> scales = { 0.75, 1.0, 2.0 };
+		//for (const float& scale : scales) {
+		//	rotate(0, scale);
+		//	save_img(fileName + get_scale_sign(scale) + EXT);
+		//}
 
 		///*SHEAR ONLY*/
 		//vector<float> shears = { 0, 1, 2, 3 };
@@ -217,14 +218,14 @@ void DataAugmentation::augment() {
 			}
 		}
 
-		/*COMBINE FLIP & SCALE*/
-		for (const int& flipCode : flipCodes) {
-			for (const float& scale : scales) {
-				flip(flipCode);
-				rotate(0, scale);
-				save_img(fileName + get_flip_sign(flipCode) + get_scale_sign(scale) + EXT);
-			}
-		}
+		///*COMBINE FLIP & SCALE*/
+		//for (const int& flipCode : flipCodes) {
+		//	for (const float& scale : scales) {
+		//		flip(flipCode);
+		//		rotate(0, scale);
+		//		save_img(fileName + get_flip_sign(flipCode) + get_scale_sign(scale) + EXT);
+		//	}
+		//}
 
 		///*COMBINE FLIP & SHEAR*/
 		//for (const int& flipCode : flipCodes) {
@@ -242,13 +243,13 @@ void DataAugmentation::augment() {
 		//	save_img(fileName + get_flip_sign(flipCode) + NOISE + EXT);
 		//}
 
-		/*COMBINE ROTATE & SCALE*/
-		for (const auto& angle : angles) {
-			for (const float& scale : scales) {
-				rotate(angle, scale);
-				save_img(fileName + get_rotate_sign(angle) + get_scale_sign(scale) + EXT);
-			}
-		}
+		///*COMBINE ROTATE & SCALE*/
+		//for (const auto& angle : angles) {
+		//	for (const float& scale : scales) {
+		//		rotate(angle, scale);
+		//		save_img(fileName + get_rotate_sign(angle) + get_scale_sign(scale) + EXT);
+		//	}
+		//}
 
 		///*COMBINE ROTATE & SHEAR*/
 		//for (const auto& angle : angles) {
@@ -287,17 +288,13 @@ void DataAugmentation::augment() {
 		/*COMBINE FLIP & ROTATE & SCALE & NOISE*/
 		for (const int& flipCode : flipCodes) {
 			for (const auto& angle : angles) {
-				for (const float& scale : scales) {
-
 					flip(flipCode);
-					rotate(angle, scale);
-					save_img(fileName + get_flip_sign(flipCode) + get_rotate_sign(angle) + get_scale_sign(scale) + EXT);
+					rotate(angle);
+					save_img(fileName + get_flip_sign(flipCode) + get_rotate_sign(angle) + EXT);
 
 					//Mat backup = imgOut.clone();
 					/*imgOut = backup;
 					save_img(fileName + get_flip_sign(flipCode) + get_rotate_sign(angle) + get_scale_sign(scale) + NOISE + EXT);*/
-
-				}
 			}
 		}
 

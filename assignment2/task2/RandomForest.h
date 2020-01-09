@@ -6,13 +6,15 @@
 #include <vector>
 #include <random>
 
+using namespace std;
+
 class RandomForest
 {
 public:
 	RandomForest();
 
 	// You can create the forest directly in the constructor or create an empty forest and use the below methods to populate it
-	RandomForest(int treeCount, int maxDepth, int CVFolds, int minSampleCount, int maxCategories);
+	RandomForest(int treeCount, int maxDepth, int CVFolds, int minSampleCount, int maxCategories, string);
 
 	~RandomForest();
 
@@ -23,6 +25,9 @@ public:
 	void setMaxCategories(int maxCategories);
 
 	int getNumTree() const;
+	int getMaxDepth() const;
+	int getCVFolds() const;
+	string getName() const;
 
 	std::vector<int> GenerateRandomVector(int NumberCount);
 	std::vector<int> compute_majority_votes(std::vector<int> unsortedPredictions);
@@ -33,6 +38,7 @@ public:
 
 
 private:
+	string name;
 	int mTreeCount;
 	int mMaxDepth;
 	int mCVFolds;

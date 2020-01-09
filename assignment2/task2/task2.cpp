@@ -73,9 +73,9 @@ void testForest(cv::Mat train_data, cv::Mat labels, cv::Mat test_data, cv::Mat t
 	int maxCategories = 6; // Limits the number of categorical values before which the decision tree will precluster those categories
 	int maxDepth = 10; // Tree will not exceed this depth, but may be less deep
 	int minSampleCount = 15; // Do not split a node if there are fewer than this number of samples at that node
-
+	string name = "rf";
 	// Initializing random forest with runtime parameters
-	std::shared_ptr<RandomForest> ptr_random_forest(new RandomForest(treeCount, maxDepth, CVFolds, minSampleCount, maxCategories));
+	std::shared_ptr<RandomForest> ptr_random_forest(new RandomForest(treeCount, maxDepth, CVFolds, minSampleCount, maxCategories, name));
 
 	// Train random forest
 	ptr_random_forest->train(train_data, labels);

@@ -4,6 +4,8 @@
 #include <math.h>
 #include <numeric>
 #include <array>
+#include <fstream>
+
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui.hpp>
@@ -29,6 +31,8 @@ const float LOWER_PERCENT = 0.01F;
 const float UPPER_PERCENT = 0.25F;
 
 const uint NUM_TREES = 64;
+const uint TREE_DEPTH = 15;
+
 const uint BACKGROUND_CLASS = 3;
 
 struct BBox {
@@ -99,13 +103,12 @@ float closest_power_2(int x)
 	return pow(2, round(log(x) / log(2)));
 }
 
-float compute_IoU(BBox best_box, vector<BBox> gt_box)
+float compute_IoU(BBox best_box, vector<BBox>& gt_box)
 {
 	// Determine the (x,y)-coordinates of the intersection rectangle
 	int idx = best_box.class_;
 
 	int w_intersection = min(best_box.rect.x + best_box.rect.width, gt_box[idx].rect.x + gt_box[idx].rect.width) - max(best_box.rect.x, gt_box[idx].rect.x);
-
 	int h_intersection = min(best_box.rect.y + best_box.rect.height, gt_box[idx].rect.y + gt_box[idx].rect.height) - max(best_box.rect.y, gt_box[idx].rect.y);
 
 	if (w_intersection <= 0 || h_intersection <= 0) {
@@ -152,7 +155,9 @@ Mat compute_HOG(Mat& img)
 	return HOG_features;
 }
 
-void prepare_train_features(Mat& hog_features_train, Mat& labels_train)
+
+
+void prepare_train_features(Mat& hog_features_train, Mat& labels_train, bool useAugmented)
 {
 	const std::string dir("TRAIN");
 	cout << "Reading and processing of TRAIN data ..." << std::endl;
@@ -166,7 +171,7 @@ void prepare_train_features(Mat& hog_features_train, Mat& labels_train)
 			full_path = (IMG_PATH / dir / subdir / FILES);
 		}
 		else {
-			full_path = (IMG_PATH / dir / subdir /AUGMENT_DIR / FILES);
+			full_path = useAugmented ? (IMG_PATH / dir / subdir / AUGMENT_DIR / FILES) : (IMG_PATH / dir / subdir / FILES);
 		}
 
 		std::vector<String> filenames;
@@ -193,31 +198,37 @@ void prepare_train_features(Mat& hog_features_train, Mat& labels_train)
 	cout << hog_features_train.rows << " rows of HOG features added to TRAIN data" << std::endl;
 }
 
-Mat draw_boxes(Mat& img, const vector<BBox>& candidate_boxes = vector<BBox>())
+void draw_boxes(Mat& img, const vector<BBox>& candidate_boxes = vector<BBox>(), const vector<BBox>& gt_boxes = vector<BBox>())
 {
-	const uint numShowRects = 1000;
-	Mat _img = img.clone();
+	stringstream stream;
 	for (int i = 0; i < candidate_boxes.size(); i++) {
 		BBox cb = candidate_boxes[i];
-		if (i < numShowRects) {
-			Scalar color;
-			switch (cb.class_)
-			{
-			case 0:
-				color = Scalar(0, 255, 255); break;
-			case 1:
-				color = Scalar(255, 0, 0); break;
-			case 2:
-				color = Scalar(0, 0, 255); break;
-			case 3:
-				color = Scalar(255, 255, 255); break;
-			default: break;
-			}
-			rectangle(_img, cb.rect, color);
-			return _img;
+		Scalar color;
+		switch (cb.class_)
+		{
+		case 0:
+			color = Scalar(0, 255, 255); break;
+		case 1:
+			color = Scalar(255, 0, 0); break;
+		case 2:
+			color = Scalar(0, 0, 255); break;
+		case 3:
+			color = Scalar(255, 255, 255); break;
+		default: break;
 		}
-		else
-			break;
+		rectangle(img, cb.rect, color);
+
+		stringstream stream;
+		stream << std::fixed << std::setprecision(2) << (cb.confidence);
+		putText(img, "class " + to_string(cb.class_) + ": " + stream.str(), Point2f(cb.rect.x, cb.rect.y - 5), FONT_HERSHEY_SIMPLEX, 0.5, color);
+	}
+
+	for (const auto& gt_box : gt_boxes) {
+		rectangle(img, gt_box.rect, Scalar(0, 255, 0));
+
+		stringstream stream;
+		stream << std::fixed << std::setprecision(2) << (gt_box.confidence);
+		putText(img, "ground truth class " + to_string(gt_box.class_), Point2f(gt_box.rect.x, gt_box.rect.y + gt_box.rect.height + 8), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 200, 0));
 	}
 }
 
@@ -288,11 +299,12 @@ Ptr<RandomForest> train_random_forest(cv::Mat data, cv::Mat labels) {
 	int treeCount = NUM_TREES;
 	int CVFolds = 1; // If (CVFolds > 1) then prune the decision tree using K-fold cross-validation where K is equal to CVFolds
 	int maxCategories = 4; // Limits the number of categorical values before which the decision tree will precluster those categories
-	int maxDepth = 15; // Tree will not exceed this depth, but may be less deep
+	int maxDepth = TREE_DEPTH; // Tree will not exceed this depth, but may be less deep
 	int minSampleCount = 5; // Do not split a node if there are fewer than this number of samples at that node
+	string name = "_rf_trees" + to_string(treeCount) + "_depth" + to_string(maxDepth) + "_cvfolds" + to_string(CVFolds);
 
 	// Initializing random forest with runtime parameters
-	std::shared_ptr<RandomForest> rf_classifier(new RandomForest(treeCount, maxDepth, CVFolds, minSampleCount, maxCategories));
+	std::shared_ptr<RandomForest> rf_classifier(new RandomForest(treeCount, maxDepth, CVFolds, minSampleCount, maxCategories, name));
 
 	// Train random forest
 	rf_classifier->train(data, labels);
@@ -331,8 +343,11 @@ vector<BBox> get_bboxes(const vector<Rect>& rects, const std::vector<std::vector
 
 vector<Preds> perform(Ptr<RandomForest>& rf_classifier, bool show_imgs = false)
 {
-	setUseOptimized(true);
-	setNumThreads(4);
+	fs::path out_ = (IMG_PATH / "test" / "out");
+	if (fs::exists(out_))
+		fs::remove_all(out_);
+
+	fs::create_directory(out_);
 
 	const std::string dir("TEST");
 	fs::path full_path = (IMG_PATH / dir / FILES);
@@ -388,6 +403,7 @@ vector<Preds> perform(Ptr<RandomForest>& rf_classifier, bool show_imgs = false)
 
 			HOG_features.push_back(HOG_vector);
 		}
+
 		std::vector<std::vector<int>> votes = rf_classifier->predict(HOG_features);
 
 		assert(votes.size() == rects.size());
@@ -422,7 +438,7 @@ vector<Preds> perform(Ptr<RandomForest>& rf_classifier, bool show_imgs = false)
 			assert(rects_by_class[i].size() == scores_by_class[i].size() && bbox_by_class[i].size() == rects_by_class[i].size());
 
 			vector<int> nms_output_indices;
-			cv::dnn::NMSBoxes(rects_by_class[i], scores_by_class[i], CONFIDENCE_THRESHOLD, SUPPRESS_THRESHOLD, nms_output_indices);
+			cv::dnn::NMSBoxes(rects_by_class[i], scores_by_class[i], CONFIDENCE_THRESHOLD, SUPPRESS_THRESHOLD, nms_output_indices, 1.0F, 1);
 
 			cout << "Number of best Region Proposals for class " << i << ": " << nms_output_indices.size() << endl;
 			for (const int& nms_indx : nms_output_indices) {
@@ -443,10 +459,19 @@ vector<Preds> perform(Ptr<RandomForest>& rf_classifier, bool show_imgs = false)
 				istream_iterator<string>());
 			BBox cb;
 			cb.class_ = stoi(splitted[0]);
-			cb.rect.x = round((stoi(splitted[1]) + stoi(splitted[3])) / 2.0);
-			cb.rect.y = round((stoi(splitted[2]) + stoi(splitted[4])) / 2.0);
-			cb.rect.width = abs(stoi(splitted[1]) - stoi(splitted[3]));
-			cb.rect.height = abs(stoi(splitted[2]) - stoi(splitted[4]));
+
+			int topleftX = stoi(splitted[1]);
+			int topleftY = stoi(splitted[2]);
+			int bottomrigthX = stoi(splitted[3]);
+			int bottomrigthY = stoi(splitted[4]);
+
+			cb.rect.x = topleftX;
+			cb.rect.y = topleftY;
+
+			cb.rect.width = bottomrigthX - topleftX;
+			cb.rect.height = bottomrigthY - topleftY;
+
+
 			gt_boxes.push_back(cb);
 		}
 		for (int i = 0; i < best_bboxes.size(); i++) {
@@ -458,33 +483,79 @@ vector<Preds> perform(Ptr<RandomForest>& rf_classifier, bool show_imgs = false)
 		}
 		fid++;
 
-		fs::path out_ = (IMG_PATH / dir / "out");
-		if (!fs::exists(out_)) {
-			fs::create_directory(out_);
-		}
 
-		_img = draw_boxes(_img, best_bboxes);
+		draw_boxes(_img, best_bboxes, gt_boxes);
 		fs::path filename(file);
 		string fn = filename.stem().string() + ".jpg";
 		fs::path outPath = (IMG_PATH / dir / "out" / fn);
 		imwrite(outPath.string(), _img);
-		this_thread::sleep_for(chrono::nanoseconds(100));
+		this_thread::sleep_for(chrono::nanoseconds(10000));
 		cout << outPath.string() << " saved successfully" << endl;
 	}
 
 	return predictions;
 }
 
+void save_classifier(Ptr<RandomForest> classifier) {
+	ofstream fout(IMG_PATH.string() + classifier->getName() + ".dat", ios::binary);
+	if (!fout)
+	{
+		cout << "Unable to open for writing.\n";
+		return;
+	}
+
+	fout.write((char*)&classifier, sizeof Ptr<RandomForest>);
+	fout.close();
+}
+
+
+vector<Ptr<RandomForest>> load_classifiers() {
+	vector<Ptr<RandomForest>> classifiers;
+	std::vector<String> filenames;
+	glob(IMG_PATH.string(), filenames);
+
+	for (const auto& file : filenames) {
+		ifstream fin(file, ios::binary);
+
+		Ptr<RandomForest> rf;
+		fin.read((char*)&rf, sizeof Ptr<RandomForest>);
+		classifiers.push_back(rf);
+
+		fin.close();
+	}
+
+	return classifiers;
+}
 
 int main() {
-	bool runAugmentation = 1;
+	setUseOptimized(true);
+	setNumThreads(4);
+
+	string userInput;
+	bool runAugmentation = 0;
+	while (1) {
+		cout << "Do you want run Data Augmentation? (y/n): ";
+		cin >> userInput;
+		cout << endl;
+
+		if (userInput.compare("y") == 0) {
+			runAugmentation = 1; break;
+		}
+		else if (userInput.compare("n") == 0)
+			break;
+		else
+			cout << "Invalid input. Please try again." << endl;
+	}
+
+	fs::path augmentInputPath;
+	fs::path augmentOutputPath;
 	if (runAugmentation) {
 		for (const std::string subdir : TRAIN_SUBDIRS) {
 			if (subdir.compare("03") == 0)
 				continue;
 
-			fs::path augmentInputPath = (IMG_PATH / "train" / subdir);
-			fs::path augmentOutputPath(augmentInputPath / AUGMENT_DIR);
+			augmentInputPath = (IMG_PATH / "train" / subdir);
+			augmentOutputPath = (augmentInputPath / AUGMENT_DIR);
 
 			if (fs::is_directory(augmentOutputPath) && fs::exists(augmentOutputPath))
 				fs::remove_all(augmentOutputPath);
@@ -496,12 +567,42 @@ int main() {
 	}
 
 	Mat hog_features_train, labels_train;
-	prepare_train_features(hog_features_train, labels_train);
+
+	bool useAugmented = 0;
+	if (runAugmentation) {
+		while (1) {
+			cout << "Do you want use Augmentated Data? (y/n): ";
+			cin >> userInput;
+			cout << endl;
+
+			if (userInput.compare("y") == 0) {
+				useAugmented = 1;
+				cout << "Augmented data will be used for training!" << endl;
+				break;
+			}
+			else if (userInput.compare("n") == 0)
+				break;
+			else
+				cout << "Invalid input. Please try again." << endl;
+		}
+	}
+	else {
+		cout << "==== Augmented data exists! It will be used for training! ==== \n" << endl;
+		useAugmented = fs::exists((IMG_PATH / "train" / "00" / AUGMENT_DIR)) ? 1 : 0;
+		useAugmented = fs::exists((IMG_PATH / "train" / "01" / AUGMENT_DIR)) ? 1 : 0;
+		useAugmented = fs::exists((IMG_PATH / "train" / "02" / AUGMENT_DIR)) ? 1 : 0;
+	}
+	
+	prepare_train_features(hog_features_train, labels_train, useAugmented);
+
 	Ptr<RandomForest> rf_classifier = train_random_forest(hog_features_train, labels_train);
-
-
 	vector<Preds> predictions;
 	predictions = perform(rf_classifier);
 	PR_curve(predictions);
+
+	save_classifier(rf_classifier);
+
+
+
 	return 0;
 }
