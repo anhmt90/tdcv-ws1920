@@ -55,49 +55,89 @@ void DataAugmentation::add_gaussian_noise() {
 	imgOut += noise;
 }
 
-void DataAugmentation::shear(int shearCode)
+void DataAugmentation::shear()
 {
-	int r1, c1; // tranformed point
-	int rows, cols; // original image rows and columns
-	rows = imgOut.rows;
-	cols = imgOut.cols;
 
-	float Bx = 0.7; // amount of shearing in x-axis
-	float By = 0.7; // amount of shearing in y-axis
-	switch (shearCode)
-	{
-	case 0:
-		Bx = 0.7F; By = 0.0F; break;
-	case 1:
-		Bx = 0.0F; By = 0.7F; break;
-	case 2:
-		Bx = -0.7F; By = 0.0F; break;
-	case 3:
-		Bx = 0.0F; By = -0.7F; break;
-	default:
-		break;
+	Mat M(2, 3, CV_32F);
+
+
+	M.at<float>(0, 0) = 1.0F;
+	M.at<float>(0, 1) = 0.0F;
+	M.at<float>(0, 2) = 0.0F;
+
+	M.at<float>(1, 0) = 0.6F;
+	M.at<float>(1, 1) = 1.0F;
+	M.at<float>(1, 2) = 0.0F;
+
+	warpAffine(imgOut, imgOut, M, Size(imgOut.cols, imgOut.rows));
+
+	///////////////////////////////////
+
+	/*float Bx;
+	float By;
+	if (shearCode == 0) {
+		Bx = 0.7;
+		By = 0;
+	}
+	else if (shearCode == 2) {
+		Bx = -0.7;
+		By = 0;
 	}
 
-	int maxXOffset = abs(cols * Bx);
-	int maxYOffset = abs(rows * By);
 
-	Mat out = Mat::ones(imgOut.rows, imgOut.cols, imgOut.type()); // create output image to be the same as the source
+	//if (input.type() != CV_8UC3) return cv::Mat();
 
-	for (int r = 0; r < out.rows; r++) // loop through the image
+
+	//// shear the extreme positions to find out new image size:
+	std::vector<cv::Point2f> extremePoints;
+	extremePoints.push_back(cv::Point2f(0, 0));
+	extremePoints.push_back(cv::Point2f(imgOut.cols, 0));
+	extremePoints.push_back(cv::Point2f(imgOut.cols, imgOut.rows));
+	extremePoints.push_back(cv::Point2f(0, imgOut.rows));
+
+	for (unsigned int i = 0; i < extremePoints.size(); ++i)
 	{
-		for (int c = 0; c < out.cols; c++)
+		cv::Point2f& pt = extremePoints[i];
+		pt = cv::Point2f(pt.x + pt.y * Bx, pt.y + pt.x * By);
+	}
+	cv::Rect offsets = cv::boundingRect(extremePoints);
+	cv::Point2f offset = -offsets.tl();
+	cv::Size resultSize = offsets.size();
+
+	cv::Mat shearedImage = cv::Mat::zeros(resultSize, imgOut.type()); // every pixel here is implicitely shifted by "offset"
+	// perform the shearing by back-transformation
+	for (int j = 0; j < shearedImage.rows; ++j)
+	{
+
+		for (int i = 0; i < shearedImage.cols; ++i)
 		{
-			r1 = r + c * By - maxYOffset; // map old point to new
-			c1 = r * Bx + c - maxXOffset;
+			cv::Point2f pp(i, j);
 
-			if (r1 >= 0 && r1 <= rows && c1 >= 0 && c1 <= cols) // check if the point is within the boundaries
+			pp = pp - offset; // go back to original coordinate system
+
+			// go back to original pixel:
+			// x'=x+y·Bx
+			// y'=y+x*By
+			//   y = y'-x*By
+			//     x = x' -(y'-x*By)*Bx
+			//     x = +x*By*Bx - y'*Bx +x'
+			//     x*(1-By*Bx) = -y'*Bx +x'
+			//     x = (-y'*Bx +x')/(1-By*Bx)
+
+			cv::Point2f p;
+			p.x = (-pp.y * Bx + pp.x) / (1 - By * Bx);
+			p.y = pp.y - p.x * By;
+
+			if ((p.x >= 0 && p.x < imgOut.cols) && (p.y >= 0 && p.y < imgOut.rows))
 			{
-				out.at<uchar>(r, c) = imgOut.at<uchar>(r1, c1); // set value
+				// TODO: interpolate, if wanted (p is floating point precision and can be placed between two pixels)!
+				shearedImage.at<cv::Vec3b>(j, i) = imgOut.at<cv::Vec3b>(p);
 			}
-
 		}
 	}
-	imgOut = out;
+	imgOut.release();
+	imgOut = shearedImage;*/
+
 }
 
 
@@ -131,17 +171,18 @@ string get_flip_sign(int flipCode) {
 	}
 }
 
-string get_shear_sign(int shearCode) {
+string get_shear_sign(int shearCode = 0) {
+	return "_shear";
 	switch (shearCode)
 	{
 	case 0:
-		return "shearX";
+		return "_shearX";
 	case 1:
-		return "shearY";
+		return "_shearY";
 	case 2:
-		return "shearXneg";
+		return "_shearXneg";
 	case 3:
-		return "shearYneg";
+		return "_shearYneg";
 	default:
 		return "Error in get_flip_sign(int)";
 	}
@@ -181,8 +222,8 @@ void DataAugmentation::augment() {
 
 		/*ROTATE ONLY*/
 		refresh_img();
-		//vector<int> angles = {0, 45, 90, 135, 180, 225, 270, 315 };
-		vector<int> angles = {0, 45, 90, 180, 270, };
+		vector<int> angles = { 0, 45, 90, 135, 180, 225, 270, 315 };
+		//vector<int> angles = {0, 45, 90, 180, 270, };
 
 		for (const auto& angle : angles) {
 			rotate(angle);
@@ -191,23 +232,21 @@ void DataAugmentation::augment() {
 
 		/*SCALE ONLY*/
 		refresh_img();
-		vector<float> scales = {1.0, 2.0 };
+		vector<float> scales = { 0.63, 1.0, 1.75 };
 
 		//for (const float& scale : scales) {
 		//	rotate(0, scale);
 		//	save_img(fileName + get_scale_sign(scale) + EXT);
 		//}
 
-		///*SHEAR ONLY*/
-		//vector<float> shears = { 0, 1, 2, 3 };
-		//for (const float& s : shears) {
-		//	shear(s);
-		//}
+		/*SHEAR ONLY*/
+		shear();
+		save_img(fileName + get_shear_sign() + EXT);
 
 		/*GAUSSIAN NOISE ONLY*/
-		refresh_img();
+		/*refresh_img();
 		add_gaussian_noise();
-		save_img(fileName + NOISE + EXT);
+		save_img(fileName + NOISE + EXT);*/
 		/*====================================================================================*/
 
 		/*COMBINE FLIP & ROTATE*/
@@ -219,30 +258,29 @@ void DataAugmentation::augment() {
 			}
 		}
 
-		///*COMBINE FLIP & SCALE*/
-		//for (const int& flipCode : flipCodes) {
-		//	for (const float& scale : scales) {
-		//		flip(flipCode);
-		//		rotate(0, scale);
-		//		save_img(fileName + get_flip_sign(flipCode) + get_scale_sign(scale) + EXT);
-		//	}
-		//}
+		/*COMBINE FLIP & SCALE*/
+		for (const int& flipCode : flipCodes) {
+			for (const float& scale : scales) {
+				flip(flipCode);
+				rotate(0, scale);
+				save_img(fileName + get_flip_sign(flipCode) + get_scale_sign(scale) + EXT);
+			}
+		}
 
-		///*COMBINE FLIP & SHEAR*/
-		//for (const int& flipCode : flipCodes) {
-		//	for (const float& s : shears) {
-		//		flip(flipCode);
-		//		shear(s);
-		//		save_img(fileName + get_flip_sign(flipCode) + get_shear_sign(s) + EXT);
-		//	}
-		//}
+		/*COMBINE FLIP & SHEAR*/
+		for (const int& flipCode : flipCodes) {
+			flip(flipCode);
+			shear();
+			save_img(fileName + get_flip_sign(flipCode) + get_shear_sign() + EXT);
 
-		///*COMBINE FLIP & NOISE*/
-		//for (const int& flipCode : flipCodes) {
-		//	flip(flipCode);
-		//	add_gaussian_noise();
-		//	save_img(fileName + get_flip_sign(flipCode) + NOISE + EXT);
-		//}
+		}
+
+		/*COMBINE FLIP & NOISE*/
+		for (const int& flipCode : flipCodes) {
+			flip(flipCode);
+			add_gaussian_noise();
+			save_img(fileName + get_flip_sign(flipCode) + NOISE + EXT);
+		}
 
 		/*COMBINE ROTATE & SCALE*/
 		for (const auto& angle : angles) {
@@ -252,30 +290,26 @@ void DataAugmentation::augment() {
 			}
 		}
 
-		///*COMBINE ROTATE & SHEAR*/
-		//for (const auto& angle : angles) {
-		//	for (const float& s : shears) {
-		//		rotate(angle);
-		//		shear(s);
-		//		save_img(fileName + get_rotate_sign(angle) + get_shear_sign(s) + EXT);
-		//	}
-		//}
+		/*COMBINE ROTATE & SHEAR*/
+		for (const auto& angle : angles) {
+			rotate(angle);
+			shear();
+			save_img(fileName + get_rotate_sign(angle) + get_shear_sign() + EXT);
+		}
 
-		///*COMBINE SCALE & SHEAR*/
-		//for (const float& scale : scales) {
-		//	for (const float& s : shears) {
-		//		rotate(0, scale);
-		//		shear(s);
-		//		save_img(fileName + get_scale_sign(scale) + get_shear_sign(s) + EXT);
-		//	}
-		//}
+		/*COMBINE SCALE & SHEAR*/
+		for (const float& scale : scales) {
+			rotate(0, scale);
+			shear();
+			save_img(fileName + get_scale_sign(scale) + get_shear_sign() + EXT);
+		}
 
-		///*COMBINE ROTATE & NOISE*/
-		//for (const auto& angle : angles) {
-		//	rotate(angle);
-		//	add_gaussian_noise();
-		//	save_img(fileName + get_rotate_sign(angle) + NOISE + EXT);
-		//}
+		/*COMBINE ROTATE & NOISE*/
+		for (const auto& angle : angles) {
+			rotate(angle);
+			add_gaussian_noise();
+			save_img(fileName + get_rotate_sign(angle) + NOISE + EXT);
+		}
 
 		///*COMBINE SCALE & NOISE*/
 		//for (const float& scale : scales) {
@@ -286,19 +320,18 @@ void DataAugmentation::augment() {
 
 		/*====================================================================================*/
 
-		/*COMBINE FLIP & ROTATE & SCALE & NOISE*/
+		/*COMBINE FLIP & ROTATE & SCALE*/
 		for (const int& flipCode : flipCodes) {
 			for (const auto& angle : angles) {
 				for (const float& scale : scales) {
+						flip(flipCode);
+						rotate(angle, scale);
+						Mat backup = imgOut.clone();
+						save_img(fileName + get_flip_sign(flipCode) + get_rotate_sign(angle) + get_scale_sign(scale) + EXT);
 
-					flip(flipCode);
-					rotate(angle, scale);
-					save_img(fileName + get_flip_sign(flipCode) + get_rotate_sign(angle) + get_scale_sign(scale) + EXT);
-
-					//Mat backup = imgOut.clone();
-					/*imgOut = backup;
-					save_img(fileName + get_flip_sign(flipCode) + get_rotate_sign(angle) + get_scale_sign(scale) + NOISE + EXT);*/
-
+						imgOut = backup;
+						shear();
+						save_img(fileName + get_flip_sign(flipCode) + get_rotate_sign(angle) + get_shear_sign() + get_scale_sign(scale)  + EXT);
 				}
 			}
 		}

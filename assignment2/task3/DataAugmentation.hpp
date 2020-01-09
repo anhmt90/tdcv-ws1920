@@ -22,7 +22,7 @@ private:
 	void add_gaussian_noise();
 	void refresh_img();
 	void save_img(string name);
-	void shear(int);
+	void shear();
 
 public:
 	DataAugmentation(fs::path, fs::path);

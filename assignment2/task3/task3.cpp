@@ -30,8 +30,8 @@ const string AUGMENT_DIR = "augmented";
 const float LOWER_PERCENT = 0.01F;
 const float UPPER_PERCENT = 0.25F;
 
-const uint NUM_TREES = 64;
-const uint TREE_DEPTH = 15;
+const uint NUM_TREES = 128;
+const uint TREE_DEPTH = 20;
 
 const uint BACKGROUND_CLASS = 3;
 
@@ -167,12 +167,13 @@ void prepare_train_features(Mat& hog_features_train, Mat& labels_train, bool use
 		cout << "Reading Images in subfolder " << subdir << std::endl;
 		fs::path full_path;
 
-		if (subdir.compare("03") == 0) {
+		/*if (subdir.compare("03") == 0) {
 			full_path = (IMG_PATH / dir / subdir / FILES);
 		}
 		else {
-			full_path = useAugmented ? (IMG_PATH / dir / subdir / AUGMENT_DIR / FILES) : (IMG_PATH / dir / subdir / FILES);
-		}
+		}*/
+
+		full_path = useAugmented ? (IMG_PATH / dir / subdir / AUGMENT_DIR / FILES) : (IMG_PATH / dir / subdir / FILES);
 
 		std::vector<String> filenames;
 		// OpenCV function which gives all files names in that directory
@@ -551,8 +552,8 @@ int main() {
 	fs::path augmentOutputPath;
 	if (runAugmentation) {
 		for (const std::string subdir : TRAIN_SUBDIRS) {
-			if (subdir.compare("03") == 0)
-				continue;
+			/*if (subdir.compare("00") == 0)
+				continue;*/
 
 			augmentInputPath = (IMG_PATH / "train" / subdir);
 			augmentOutputPath = (augmentInputPath / AUGMENT_DIR);
@@ -568,8 +569,8 @@ int main() {
 
 	Mat hog_features_train, labels_train;
 
-	bool useAugmented = 0;
-	if (runAugmentation) {
+	bool useAugmented = 1;
+	/*if (runAugmentation) {
 		while (1) {
 			cout << "Do you want use Augmentated Data? (y/n): ";
 			cin >> userInput;
@@ -580,8 +581,10 @@ int main() {
 				cout << "Augmented data will be used for training!" << endl;
 				break;
 			}
-			else if (userInput.compare("n") == 0)
+			else if (userInput.compare("n") == 0) {
+				useAugmented = 0;
 				break;
+			}
 			else
 				cout << "Invalid input. Please try again." << endl;
 		}
@@ -591,8 +594,8 @@ int main() {
 		useAugmented = fs::exists((IMG_PATH / "train" / "00" / AUGMENT_DIR)) ? 1 : 0;
 		useAugmented = fs::exists((IMG_PATH / "train" / "01" / AUGMENT_DIR)) ? 1 : 0;
 		useAugmented = fs::exists((IMG_PATH / "train" / "02" / AUGMENT_DIR)) ? 1 : 0;
-	}
-	
+	}*/
+
 	prepare_train_features(hog_features_train, labels_train, useAugmented);
 
 	Ptr<RandomForest> rf_classifier = train_random_forest(hog_features_train, labels_train);
