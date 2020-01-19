@@ -4,8 +4,8 @@ import data
 
 root = './dataset'
 
-train_dataset = data.train_dataset(root)  # Requires normalization
-db_dataset = data.db_dataset(root)  # Requires normalization
+train_dataset = data.TrainDataset(root)  # Requires normalization
+db_dataset = data.DbDataset(root)  # Requires normalization
 dataloader = DataLoader(train_dataset, shuffle=True)
 
 for anchor in dataloader:

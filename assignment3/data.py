@@ -9,12 +9,62 @@ import torchvision
 from torchvision import transforms as T
 from torch.utils.data import Dataset
 
-def sorted_aphanumeric(data):
+
+def sorted_alphanumeric(data):
     convert = lambda text: int(text) if text.isdigit() else text.lower()
     alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key)]
     return sorted(data, key=alphanum_key)
 
-class train_dataset(Dataset):
+
+class TestDataset(Dataset):
+    def __init__(self, root, transform=None):
+        """
+        Args:
+            root (string): Path to dataset folder.
+            transform (callable, optional): Optional transform to be applied
+                on a sample.
+        """
+        self.dir = os.path.join(root, 'real')
+        self.transform = transform
+        self.imgs = []
+        self.poses = []
+        self.targets = []
+        valid_images = [".jpeg", ".jpg", ".png"]
+        split_list = pd.read_csv(os.path.join(self.dir, 'training_split.txt'))
+        c = 0
+        for folder in sorted(os.listdir(self.dir)):
+            if (folder == 'training_split.txt') == True or (folder == '.DS_Store') == True:
+                continue
+            num_lines = sum(1 for _ in open(os.path.join(self.dir, folder, 'poses.txt')))
+            skip_idx = list(range(0, num_lines - 1, 2))
+            pose_folder = pd.read_csv(os.path.join(self.dir, folder, 'poses.txt'), sep=' ', header=None,
+                                      skiprows=skip_idx)
+            for img in sorted_alphanumeric(os.listdir(os.path.join(self.dir, folder))):
+                file, ext = os.path.splitext(img)
+                if ext.lower() not in valid_images:
+                    continue
+                if file[len('real'):] not in split_list:  # check if image_id is included in training split
+                    self.imgs.append(os.path.join(self.dir, folder, img))
+                    self.poses.append(pose_folder.iloc[int(file[len('real'):])].tolist())
+                    self.targets.append(c)
+            c += 1
+
+    def __len__(self):
+        return len(self.imgs)
+
+    def __getitem__(self, idx):
+        img = Image.open(self.imgs[idx])
+        pose = torch.Tensor(self.poses[idx])
+        target = self.targets[idx]
+        if self.transform:
+            img = self.transform(img)
+        else:
+            img = T.ToTensor()(img)
+        test_sample = {'image': img, 'pose': pose, 'target': target}
+        return test_sample
+
+
+class TrainDataset(Dataset):
     def __init__(self, root, transform=None):
         """
         Args:
@@ -38,7 +88,7 @@ class train_dataset(Dataset):
             skip_idx = list(range(0, num_lines - 1, 2))
             pose_folder = pd.read_csv(os.path.join(self.dir_fine, folder, 'poses.txt'), sep=' ', header=None,
                                       skiprows=skip_idx)
-            for img in sorted_aphanumeric(os.listdir(os.path.join(self.dir_fine, folder))):
+            for img in sorted_alphanumeric(os.listdir(os.path.join(self.dir_fine, folder))):
                 ext = os.path.splitext(img)[1]
                 if ext.lower() not in valid_images:
                     continue
@@ -58,7 +108,7 @@ class train_dataset(Dataset):
             skip_idx = list(range(0, num_lines - 1, 2))
             pose_folder = pd.read_csv(os.path.join(self.dir_real, folder, 'poses.txt'), sep=' ', header=None,
                                       skiprows=skip_idx)
-            for img in sorted_aphanumeric(os.listdir(os.path.join(self.dir_real, folder))):
+            for img in sorted_alphanumeric(os.listdir(os.path.join(self.dir_real, folder))):
                 file, ext = os.path.splitext(img)
                 if ext.lower() not in valid_images:
                     continue
@@ -82,7 +132,7 @@ class train_dataset(Dataset):
         return train_sample
 
 
-class db_dataset():
+class DbDataset():
     def __init__(self, root, transform=None):
         """
         Args:
@@ -101,7 +151,7 @@ class db_dataset():
             num_lines = sum(1 for _ in open(os.path.join(self.dir, folder, 'poses.txt')))
             skip_idx = list(range(0, num_lines - 1, 2))
             pose_folder = pd.read_csv(os.path.join(self.dir, folder, 'poses.txt'), sep=' ', header=None, skiprows=skip_idx)
-            for img in sorted_aphanumeric(os.listdir(os.path.join(self.dir, folder))):
+            for img in sorted_alphanumeric(os.listdir(os.path.join(self.dir, folder))):
                 ext = os.path.splitext(img)[1]
                 if ext.lower() not in valid_images:
                     continue
@@ -115,7 +165,6 @@ class db_dataset():
         poses = self.per_class_list[anchor_class]['poses'].tolist()
         dist = []
         for p in poses:
-            #b = np.linalg.norm(p, ord=2, axis=0)
             dist.append(2 * np.arccos((np.dot(anchor_pose.numpy(), p))**2 -1).item())
         return np.argmin(dist)
 
@@ -124,7 +173,6 @@ class db_dataset():
             pusher_idx = np.random.randint(0, self.imgs_per_class)
             if pusher_idx != puller_idx:
                 return pusher_idx
-
 
     def __len__(self):
         return self.imgs_per_class
