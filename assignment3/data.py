@@ -173,7 +173,7 @@ class DbDataset():
             indices.append(np.argmin(dist))
         return indices
 
-    def get_pusher(self, puller_idx, anchor_class):
+    def get_pusher(self, puller_idx):
         indices = []
         for i in puller_idx:
             while True:

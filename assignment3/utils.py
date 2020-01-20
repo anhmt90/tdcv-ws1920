@@ -9,7 +9,7 @@ def unnormalize(image):
     return image * std + mean
 
 
-def plot_triplet(anchor, puller, pusher):
+def visualize_triplet(anchor, puller, pusher):
     size = anchor['image'].size()[0]//4
     fig, ax = plt.subplots(size, 3, figsize=(50,50))
 
