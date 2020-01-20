@@ -30,7 +30,7 @@ class TestDataset(Dataset):
         self.poses = []
         self.targets = []
         valid_images = [".jpeg", ".jpg", ".png"]
-        split_list = pd.read_csv(os.path.join(self.dir, 'training_split.txt'))
+        split_list = pd.read_csv(os.path.join(self.dir, 'training_split.txt'), header=None).values.flatten().tolist()
         c = 0
         for folder in sorted(os.listdir(self.dir)):
             if (folder == 'training_split.txt') == True or (folder == '.DS_Store') == True:
@@ -43,7 +43,8 @@ class TestDataset(Dataset):
                 file, ext = os.path.splitext(img)
                 if ext.lower() not in valid_images:
                     continue
-                if file[len('real'):] not in split_list:  # check if image_id is included in training split
+                img_id = int(file[len('real'):])
+                if img_id not in split_list:  # check if image_id is included in training split
                     self.imgs.append(os.path.join(self.dir, folder, img))
                     self.poses.append(pose_folder.iloc[int(file[len('real'):])].tolist())
                     self.targets.append(c)
@@ -99,7 +100,7 @@ class TrainDataset(Dataset):
             c += 1
 
         # Now, do the same for images in real folder belonging to training set (split in training_split.txt)
-        split_list = pd.read_csv(os.path.join(self.dir_real, 'training_split.txt'))
+        split_list = pd.read_csv(os.path.join(self.dir_real, 'training_split.txt'), header=None).values.flatten().tolist()
         c = 0
         for folder in sorted(os.listdir(self.dir_real)):
             if (folder == 'training_split.txt') == True or (folder == '.DS_Store') == True:
@@ -112,7 +113,8 @@ class TrainDataset(Dataset):
                 file, ext = os.path.splitext(img)
                 if ext.lower() not in valid_images:
                     continue
-                if file[len('real'):] in split_list:  # check if image_id is included in training split
+                img_id = int(file[len('real'):])
+                if img_id in split_list:  # check if image_id is included in training split
                     self.imgs.append(os.path.join(self.dir_real, folder, img))
                     self.poses.append(pose_folder.iloc[int(file[len('real'):])].tolist())
                     self.targets.append(c)
@@ -162,27 +164,38 @@ class DbDataset():
         self.imgs_per_class = len(imgs)
 
     def get_puller(self, anchor_pose, anchor_class):
-        poses = self.per_class_list[anchor_class]['poses'].tolist()
-        dist = []
-        for p in poses:
-            dist.append(2 * np.arccos((np.dot(anchor_pose.numpy(), p))**2 -1).item())
-        return np.argmin(dist)
+        indices = []
+        for anchor_c, anchor_p in zip(anchor_class, anchor_pose):
+            poses = self.per_class_list[anchor_c]['poses'].tolist()
+            dist = []
+            for p in poses:
+                dist.append(2 * np.arccos((np.dot(anchor_p.numpy(), p))**2 -1).item())
+            indices.append(np.argmin(dist))
+        return indices
 
     def get_pusher(self, puller_idx, anchor_class):
-        while True:
-            pusher_idx = np.random.randint(0, self.imgs_per_class)
-            if pusher_idx != puller_idx:
-                return pusher_idx
+        indices = []
+        for i in puller_idx:
+            while True:
+                pusher_idx = np.random.randint(0, self.imgs_per_class)
+                if pusher_idx != i:
+                    indices.append(pusher_idx)
+                    break
+        return indices
 
     def __len__(self):
         return self.imgs_per_class
 
     def __getitem__(self, idx, anchor_class):
-        img = Image.open(self.per_class_list[anchor_class]['images'].iloc[idx])
-        pose = torch.Tensor(self.per_class_list[anchor_class]['poses'].iloc[idx])
-        if self.transform:
-            img = self.transform(img)
-        else:
-            img = T.ToTensor()(img)
-        train_sample = {'image': img, 'pose': pose}
+        image_list, pose_list = [], []
+        for i, anchor_c in zip(idx, anchor_class):
+            img = Image.open(self.per_class_list[anchor_c]['images'].iloc[i])
+            pose = torch.Tensor(self.per_class_list[anchor_c]['poses'].iloc[i])
+            if self.transform:
+                img = self.transform(img)
+            else:
+                img = T.ToTensor()(img)
+            image_list.append(img.unsqueeze(0))
+            pose_list.append(pose.unsqueeze(0))
+        train_sample = {'image': torch.cat(image_list, dim=0), 'pose': torch.cat(pose_list, dim=0)}
         return train_sample
