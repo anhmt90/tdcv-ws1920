@@ -38,14 +38,14 @@ net = model.Net()
 net = net.to(device)
 
 # Set up the optimizer
-learning_rate = 1e-2
+learning_rate = 1e-3
 optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate, betas=(0, 0))
-
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.95, last_epoch=-1)
 num_epochs = 20
 
 # TRAINING
 for epoch in range(num_epochs):
-
+    print(f'Epoch {epoch}')
     running_loss = 0.0
 
     for i, anchor in enumerate(dataloader):
@@ -82,8 +82,9 @@ for epoch in range(num_epochs):
         running_loss += loss.item()
         if i % 10 == 9:  # print every 10 batches
             print('[%d, %5d] loss: %.3f' %
-                  (epoch + 1, i + 1, running_loss))
-            running_loss = 0.0
+                  (epoch, i + 1, running_loss))
             writer.add_scalar('Loss', running_loss / 10, epoch * len(dataloader) + i)
+            running_loss = 0.0
+    scheduler.step()
 
 print('Finished Training')
