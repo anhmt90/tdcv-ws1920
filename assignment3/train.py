@@ -86,5 +86,8 @@ for epoch in range(num_epochs):
             writer.add_scalar('Loss', running_loss / 10, epoch * len(dataloader) + i)
             running_loss = 0.0
     scheduler.step()
+    for param_group in optimizer.param_groups:
+        lr = param_group['lr']
+        print(f'Learning rate updated to: {lr}')
 
 print('Finished Training')
