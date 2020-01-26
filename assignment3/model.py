@@ -12,6 +12,7 @@ class Net(nn.Module):
         self.fc2 = nn.Linear(256, 16)
 
     def forward(self, x):
+        assert (x.size()[0]%3) == 0, 'Batch size must be divisible by 3'
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         x = x.view(-1, 12 * 12 * 7)

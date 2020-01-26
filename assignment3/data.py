@@ -134,7 +134,7 @@ class TrainDataset(Dataset):
         return train_sample
 
 
-class DbDataset():
+class DbDataset(Dataset):
     def __init__(self, root, transform=None):
         """
         Args:
@@ -183,10 +183,7 @@ class DbDataset():
                     break
         return indices
 
-    def __len__(self):
-        return self.imgs_per_class
-
-    def __getitem__(self, idx, anchor_class):
+    def get_triplet(self, idx, anchor_class):
         image_list, pose_list = [], []
         for i, anchor_c in zip(idx, anchor_class):
             img = Image.open(self.per_class_list[anchor_c]['images'].iloc[i])
@@ -198,4 +195,18 @@ class DbDataset():
             image_list.append(img.unsqueeze(0))
             pose_list.append(pose.unsqueeze(0))
         train_sample = {'image': torch.cat(image_list, dim=0), 'pose': torch.cat(pose_list, dim=0)}
+        return train_sample
+
+    def __len__(self):
+        return self.imgs_per_class
+
+    def __getitem__(self, idx):
+        img = Image.open(self.imgs[idx])
+        pose = torch.Tensor(self.poses[idx])
+        target = self.targets[idx]
+        if self.transform:
+            img = self.transform(img)
+        else:
+            img = T.ToTensor()(img)
+        train_sample = {'image': img, 'pose': pose, 'target': target}
         return train_sample
