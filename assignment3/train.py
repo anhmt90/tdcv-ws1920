@@ -5,11 +5,13 @@ import torchvision.transforms as T
 import model
 import data
 import utils
+import numpy as np
 from loss import *
 from torch.utils.tensorboard import SummaryWriter
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 root = './dataset'
+PATH = './net.pth'
 
 # Writer will output to ./runs/ directory by default
 # To visualize results write in terminal tensorboard --logdir=runs
@@ -27,6 +29,7 @@ transform = T.Compose([T.ToTensor(), T.Normalize(mean, std)])
 train_dataset = data.TrainDataset(root, transform=transform)  # Requires normalization
 db_dataset = data.DbDataset(root, transform=transform)  # Requires normalization
 test_dataset = data.TestDataset(root, transform=transform)  # Requires normalization
+database_dataset = data.DatabaseDataset(root, transform=transform)  # Requires normalization
 
 batch_size = 64
 
@@ -36,6 +39,26 @@ dataloader = DataLoader(train_dataset, batch_size, shuffle=True)
 # Create the model
 net = model.Net()
 net = net.to(device)
+# net.load_state_dict(torch.load(PATH))
+
+
+def compute_histogram():
+    testloader = DataLoader(test_dataset, batch_size*3, shuffle=False)
+    dbloader = DataLoader(database_dataset, batch_size*3, shuffle=False)
+
+    with torch.no_grad():
+        output_test = np.concatenate([net(samples['image']).numpy() for j, samples in enumerate(testloader)])
+        output_db = np.concatenate([net(samples['image']).numpy() for j, samples in enumerate(dbloader)])
+
+        angular_diffs = []
+        for match in utils.knn_to_dbdataset(output_test, output_db):
+            m = test_dataset.__getitem__(match.queryIdx)
+            n = database_dataset.__getitem__(match.trainIdx)
+            if m['target'] == n['target']:
+                angular_diffs.append(2 * np.arccos((np.dot(m['pose'].numpy(), n['pose'].numpy())) ** 2 - 1).item())
+
+        utils.visualize_histogram(angular_diffs)
+
 
 # Set up the optimizer
 learning_rate = 1e-3
@@ -85,9 +108,15 @@ for epoch in range(num_epochs):
                   (epoch, i + 1, running_loss))
             writer.add_scalar('Loss', running_loss / 10, epoch * len(dataloader) + i)
             running_loss = 0.0
+
+        # if (epoch+1)*(i+1) % 1000 == 0:
+        #    compute_histogram()
+
     scheduler.step()
     for param_group in optimizer.param_groups:
         lr = param_group['lr']
         print(f'Learning rate updated to: {lr}')
 
+
 print('Finished Training')
+# torch.save(net.state_dict(), PATH)

@@ -210,3 +210,49 @@ class DbDataset(Dataset):
             img = T.ToTensor()(img)
         train_sample = {'image': img, 'pose': pose, 'target': target}
         return train_sample
+
+		
+class DatabaseDataset(Dataset):
+    def __init__(self, root, transform=None):
+        """
+        Args:
+            root (string): Path to dataset folder.
+            transform (callable, optional): Optional transform to be applied
+                on a sample.
+        """
+        self.dir = os.path.join(root, 'coarse')
+        self.transform = transform
+        self.imgs = []
+        self.poses = []
+        self.targets = []
+        valid_images = [".jpeg", ".jpg", ".png"]
+        c = 0
+        for folder in sorted(os.listdir(self.dir)):
+            fidx = 0
+            num_lines = sum(1 for _ in open(os.path.join(self.dir, folder, 'poses.txt')))
+            skip_idx = list(range(0, num_lines - 1, 2))
+            pose_folder = pd.read_csv(os.path.join(self.dir, folder, 'poses.txt'), sep=' ', header=None,
+                                      skiprows=skip_idx)
+            for img in sorted_alphanumeric(os.listdir(os.path.join(self.dir, folder))):
+                ext = os.path.splitext(img)[1]
+                if ext.lower() not in valid_images:
+                    continue
+                self.imgs.append(os.path.join(self.dir, folder, img))
+                self.poses.append(pose_folder.iloc[fidx].tolist())
+                self.targets.append(c)
+                fidx += 1
+            c += 1
+
+    def __len__(self):
+        return len(self.imgs)
+
+    def __getitem__(self, idx):
+        img = Image.open(self.imgs[idx])
+        pose = torch.Tensor(self.poses[idx])
+        target = self.targets[idx]
+        if self.transform:
+            img = self.transform(img)
+        else:
+            img = T.ToTensor()(img)
+        test_sample = {'image': img, 'pose': pose, 'target': target}
+        return test_sample

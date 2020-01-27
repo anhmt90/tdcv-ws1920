@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import cv2
 
 mean = [0.1173, 0.0984, 0.0915]
@@ -24,14 +25,26 @@ def visualize_triplet(anchor, puller, pusher):
 
 
 def knn_to_dbdataset(descriptors_testdataset, descriptors_dbdataset):
+    bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
+    matches = bf.match(descriptors_testdataset, descriptors_dbdataset)
 
-    # Define the number of nearest neighbours
-    knn = 1
+    return matches
 
-    # create BFMatcher object. In the homework it is stated we should use Euclidean distance as the metric
-    bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
 
-    # Match descriptors.
-    match = bf.knnMatch(descriptors_testdataset, descriptors_dbdataset, k=knn)
+def visualize_histogram(angular_diffs):
+    bins = np.zeros(4)
+    for angular_diff in angular_diffs:
+        if angular_diff < 10:
+            bins[0:4] += 1
+        elif 10 < angular_diff < 20:
+            bins[1:4] += 1
+        elif 20 < angular_diff < 40:
+            bins[2:4] += 1
+        elif 40 < angular_diff < 180:
+            bins[3] += 1
 
-    return match
+    bin_labels = ('<10', '<20', '<40', '<180')
+    y_pos = np.arange(len(bin_labels))
+    plt.bar(y_pos, bins.tolist(), align='center', alpha=0.5)
+    plt.xticks(y_pos, bin_labels)
+    plt.show()
