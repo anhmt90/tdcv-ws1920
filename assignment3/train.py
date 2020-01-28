@@ -109,8 +109,8 @@ for epoch in range(num_epochs):
             writer.add_scalar('Loss', running_loss / 10, epoch * len(dataloader) + i)
             running_loss = 0.0
 
-        # if (epoch+1)*(i+1) % 1000 == 0:
-        #    compute_histogram()
+        if (epoch+1)*(i+1) % 1000 == 0:
+            compute_histogram()
 
     scheduler.step()
     for param_group in optimizer.param_groups:
