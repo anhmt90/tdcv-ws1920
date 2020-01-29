@@ -29,8 +29,6 @@ transform = T.Compose([T.ToTensor(), T.Normalize(mean, std)])
 # Create the three different datasets
 train_dataset = data.TrainDataset(root, transform=transform)  # Requires normalization
 db_dataset = data.DbDataset(root, transform=transform)  # Requires normalization
-test_dataset = data.TestDataset(root, transform=transform)  # Requires normalization
-database_dataset = data.DatabaseDataset(root, transform=transform)  # Requires normalization
 
 batch_size = 256
 
@@ -41,25 +39,6 @@ dataloader = DataLoader(train_dataset, batch_size, shuffle=True)
 net = model.Net()
 net = net.to(device)
 # net.load_state_dict(torch.load(PATH))
-
-
-def compute_histogram():
-    testloader = DataLoader(test_dataset, batch_size*3, shuffle=False)
-    dbloader = DataLoader(database_dataset, batch_size*3, shuffle=False)
-
-    with torch.no_grad():
-        output_test = np.concatenate([net(samples['image']).numpy() for j, samples in enumerate(testloader)])
-        output_db = np.concatenate([net(samples['image']).numpy() for j, samples in enumerate(dbloader)])
-
-        angular_diffs = []
-        for match in utils.knn_to_dbdataset(output_test, output_db):
-            m = test_dataset.__getitem__(match.queryIdx)
-            n = database_dataset.__getitem__(match.trainIdx)
-            if m['target'] == n['target']:
-                angular_diffs.append(2 * np.rad2deg(np.arccos((np.dot(m['pose'].numpy(), n['pose'].numpy())) ** 2 - 1)).item())
-
-        utils.visualize_histogram(angular_diffs)
-
 
 # Set up the optimizer
 learning_rate = 1e-3
@@ -112,8 +91,6 @@ for epoch in range(num_epochs):
             writer.add_scalar('Loss', running_loss / 10, epoch * len(dataloader) + i)
             running_loss = 0.0
 
-        if (epoch+1)*(i+1) % 1000 == 0:
-            compute_histogram()
 
     if epoch % save_every == save_every - 1:
         checkpoint = {

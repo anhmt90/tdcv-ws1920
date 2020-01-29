@@ -47,4 +47,6 @@ def visualize_histogram(angular_diffs):
     y_pos = np.arange(len(bin_labels))
     plt.bar(y_pos, bins.tolist(), align='center', alpha=0.5)
     plt.xticks(y_pos, bin_labels)
+    for i in range(4):
+        plt.text(y_pos[i], bins[i], str(bins[i]))
     plt.show()
