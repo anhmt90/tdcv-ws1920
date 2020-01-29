@@ -55,7 +55,7 @@ def compute_histogram():
             m = test_dataset.__getitem__(match.queryIdx)
             n = database_dataset.__getitem__(match.trainIdx)
             if m['target'] == n['target']:
-                angular_diffs.append(2 * np.arccos((np.dot(m['pose'].numpy(), n['pose'].numpy())) ** 2 - 1).item())
+                angular_diffs.append(2 * np.rad2deg(np.arccos((np.dot(m['pose'].numpy(), n['pose'].numpy())) ** 2 - 1)).item())
 
         utils.visualize_histogram(angular_diffs)
 
@@ -102,8 +102,6 @@ for epoch in range(num_epochs):
         loss = total_loss(outputs)
         loss.backward()
         optimizer.step()
-
-        compute_histogram()
 
         # print statistics
         running_loss += loss.item()
