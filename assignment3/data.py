@@ -32,7 +32,8 @@ class TestDataset(Dataset):
         valid_images = [".jpeg", ".jpg", ".png"]
         split_list = pd.read_csv(os.path.join(self.dir, 'training_split.txt'), header=None).values.flatten().tolist()
         c = 0
-		skip_one = 0
+        skip_one = 0
+
         for folder in sorted(os.listdir(self.dir)):
             if (folder == 'training_split.txt') == True or (folder == '.DS_Store') == True:
                 continue
@@ -44,7 +45,7 @@ class TestDataset(Dataset):
                 file, ext = os.path.splitext(img)
                 if ext.lower() not in valid_images:
                     continue
-				if skip_one == 0:  # skip an image from the test data set so that it is divisible by 3
+                if skip_one == 0:  # skip an image from the test data set so that it is divisible by 3
                     skip_one += 1
                     continue
                 img_id = int(file[len('real'):])
@@ -123,6 +124,7 @@ class TrainDataset(Dataset):
                     self.poses.append(pose_folder.iloc[int(file[len('real'):])].tolist())
                     self.targets.append(c)
             c += 1
+
     def __len__(self):
         return len(self.imgs)
 
@@ -215,7 +217,7 @@ class DbDataset(Dataset):
         train_sample = {'image': img, 'pose': pose, 'target': target}
         return train_sample
 
-		
+
 class DatabaseDataset(Dataset):
     def __init__(self, root, transform=None):
         """

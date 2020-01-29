@@ -75,11 +75,13 @@ for epoch in range(num_epochs):
 
         # From each image on a batch of anchor select the puller and pusher indexes
         puller_idx = db_dataset.get_puller(anchor['pose'], anchor['target'])
-        pusher_idx = db_dataset.get_pusher(puller_idx) # pusher belongs to the same class but has different pose to puller
+        pusher_idx = db_dataset.get_pusher(puller_idx)
 
         # Get a dict containing the images and poses for those indexes
         puller = db_dataset.get_triplet(puller_idx, anchor['target'])
-        pusher = db_dataset.get_triplet(pusher_idx, anchor['target'])
+        class_pusher = np.random.randint(0, 5, size=batch_size)  # Now pusher comes from any class of the db Dataset
+        pusher = db_dataset.get_triplet(pusher_idx, class_pusher)
+        # pusher = db_dataset.get_triplet(pusher_idx, anchor['target']) # This one to take pusher from same class as anchor and puller
 
         # If you want to visualize some images of the batch use this function
         # utils.visualize_triplet(anchor, puller, pusher)
@@ -100,6 +102,8 @@ for epoch in range(num_epochs):
         loss = total_loss(outputs)
         loss.backward()
         optimizer.step()
+
+        compute_histogram()
 
         # print statistics
         running_loss += loss.item()

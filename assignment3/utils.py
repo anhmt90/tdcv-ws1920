@@ -25,7 +25,7 @@ def visualize_triplet(anchor, puller, pusher):
 
 
 def knn_to_dbdataset(descriptors_testdataset, descriptors_dbdataset):
-    bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
+    bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
     matches = bf.match(descriptors_testdataset, descriptors_dbdataset)
 
     return matches
