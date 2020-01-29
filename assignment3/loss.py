@@ -7,7 +7,7 @@ def triplet_loss(output):
     diff_neg = output[0:batch_size:3] - output[2:batch_size:3]
     norm_pos = torch.norm(diff_pos.view(batch_size//3, -1), p=2, dim=1)
     norm_neg = torch.norm(diff_neg.view(batch_size//3, -1), p=2, dim=1)
-    loss = torch.max(torch.zeros(batch_size//3), -1 * (norm_pos / (norm_neg + 0.01)) + 1).sum()
+    loss = torch.max(torch.zeros(batch_size//3).to(output.device), -1 * (norm_pos / (norm_neg + 0.01)) + 1).sum()
     return loss
 
 

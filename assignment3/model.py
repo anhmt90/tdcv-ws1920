@@ -1,6 +1,8 @@
-from torch.nn import Sequential
+import os
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import shutil
 
 class Net(nn.Module):
     def __init__(self):
@@ -19,3 +21,15 @@ class Net(nn.Module):
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return x
+
+
+def save_ckp(state, checkpoint_dir, epoch):
+    f_path = os.path.join(checkpoint_dir, f'checkpoint{epoch}.pt')
+    torch.save(state, f_path)
+
+
+def load_ckp(checkpoint_fpath, model, optimizer):
+    checkpoint = torch.load(checkpoint_fpath)
+    model.load_state_dict(checkpoint['state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    return model, optimizer, checkpoint['epoch']

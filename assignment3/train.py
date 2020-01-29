@@ -12,7 +12,8 @@ from torch.utils.tensorboard import SummaryWriter
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 root = './dataset'
 PATH = './net.pth'
-
+ckp_dir = 'models'  # Path of directory where checkpoints of model will be saved during training
+save_every = 4
 # Writer will output to ./runs/ directory by default
 # To visualize results write in terminal tensorboard --logdir=runs
 # tensorflow must be install in environment
@@ -31,7 +32,7 @@ db_dataset = data.DbDataset(root, transform=transform)  # Requires normalization
 test_dataset = data.TestDataset(root, transform=transform)  # Requires normalization
 database_dataset = data.DatabaseDataset(root, transform=transform)  # Requires normalization
 
-batch_size = 64
+batch_size = 256
 
 # Dataloader to iterate through TRAIN SET
 dataloader = DataLoader(train_dataset, batch_size, shuffle=True)
@@ -64,7 +65,7 @@ def compute_histogram():
 learning_rate = 1e-3
 optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate, betas=(0, 0))
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.95, last_epoch=-1)
-num_epochs = 20
+num_epochs = 50
 
 # TRAINING
 for epoch in range(num_epochs):
@@ -93,7 +94,7 @@ for epoch in range(num_epochs):
         x[0:batch_size*3:3,:,:,:] = anchor['image']
         x[1:batch_size * 3:3, :, :, :] = puller['image']
         x[2:batch_size * 3:3, :, :, :] = pusher['image']
-
+        x = x.to(device)
         # zero the parameter gradients
         optimizer.zero_grad()
 
@@ -114,6 +115,13 @@ for epoch in range(num_epochs):
         if (epoch+1)*(i+1) % 1000 == 0:
             compute_histogram()
 
+    if epoch % save_every == save_every - 1:
+        checkpoint = {
+            'epoch': epoch + 1,
+            'state_dict': net.state_dict(),
+            'optimizer': optimizer.state_dict()
+        }
+        model.save_ckp(checkpoint, ckp_dir, epoch)
     scheduler.step()
     for param_group in optimizer.param_groups:
         lr = param_group['lr']
