@@ -13,7 +13,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 root = './dataset'
 PATH = './net.pth'
 ckp_dir = 'models'  # Path of directory where checkpoints of model will be saved during training
-save_every = 4
+save_every = 1
 # Writer will output to ./runs/ directory by default
 # To visualize results write in terminal tensorboard --logdir=runs
 # tensorflow must be install in environment
@@ -30,10 +30,11 @@ transform = T.Compose([T.ToTensor(), T.Normalize(mean, std)])
 train_dataset = data.TrainDataset(root, transform=transform)  # Requires normalization
 db_dataset = data.DbDataset(root, transform=transform)  # Requires normalization
 
-batch_size = 256
+batch_size = 128
 
 # Dataloader to iterate through TRAIN SET
 dataloader = DataLoader(train_dataset, batch_size, shuffle=True)
+num_batches = len(dataloader)
 
 # Create the model
 net = model.Net()
@@ -44,14 +45,14 @@ net = net.to(device)
 learning_rate = 1e-3
 optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate, betas=(0, 0))
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.95, last_epoch=-1)
-num_epochs = 50
+num_epochs = 3
 
 # TRAINING
 for epoch in range(num_epochs):
     print(f'Epoch {epoch}')
     running_loss = 0.0
 
-    for i, anchor in enumerate(dataloader):
+    for batch_i, anchor in enumerate(dataloader):
 
         # From each image on a batch of anchor select the puller and pusher indexes
         puller_idx = db_dataset.get_puller(anchor['pose'], anchor['target'])
@@ -61,45 +62,47 @@ for epoch in range(num_epochs):
         puller = db_dataset.get_triplet(puller_idx, anchor['target'])
         class_pusher = np.random.randint(0, 5, size=batch_size)  # Now pusher comes from any class of the db Dataset
         pusher = db_dataset.get_triplet(pusher_idx, class_pusher)
-        # pusher = db_dataset.get_triplet(pusher_idx, anchor['target']) # This one to take pusher from same class as anchor and puller
+
+        # This one to take pusher from same class as anchor and puller
+        # pusher = db_dataset.get_triplet(pusher_idx, anchor['target'])
 
         # If you want to visualize some images of the batch use this function
-        # utils.visualize_triplet(anchor, puller, pusher)
+        # utils.visualize_triplet(anchor, puller, pusher, size=10)
 
         # Create a tensor of zeros to reorganize the anchor,puller and pusher images
         # to have the shape stated on the homework :
         # anchor_1,puller_1,pusher_1,anchor_2,puller_2,pusher_2.....,anchor_batch_size,puller_batch_size,pusher_batch_size
-        x = torch.zeros_like(anchor['image']).repeat(3, 1, 1, 1)
-        x[0:batch_size*3:3,:,:,:] = anchor['image']
-        x[1:batch_size * 3:3, :, :, :] = puller['image']
-        x[2:batch_size * 3:3, :, :, :] = pusher['image']
-        x = x.to(device)
+        inputs = torch.zeros_like(anchor['image']).repeat(3, 1, 1, 1)
+        inputs[0:batch_size * 3:3, :, :, :] = anchor['image']
+        inputs[1:batch_size * 3:3, :, :, :] = puller['image']
+        inputs[2:batch_size * 3:3, :, :, :] = pusher['image']
+        inputs = inputs.to(device)
         # zero the parameter gradients
         optimizer.zero_grad()
 
         # forward + backward + optimize
-        outputs = net(x)
+        outputs = net(inputs)
         loss = total_loss(outputs)
         loss.backward()
         optimizer.step()
 
         # print statistics
         running_loss += loss.item()
-        if i % 10 == 9:  # print every 10 batches
-            print('[%d, %5d] loss: %.3f' %
-                  (epoch, i + 1, running_loss))
-            writer.add_scalar('Loss', running_loss / 10, epoch * len(dataloader) + i)
-            running_loss = 0.0
+        iteration = epoch * num_batches + batch_i
+        if iteration % 10 == 9:  # print every 10 batches
+            print('iter: %d, loss: %.3f' % (iteration, running_loss))
+            writer.add_scalar('Loss', running_loss, iteration)
 
-
-    if epoch % save_every == save_every - 1:
+    if (epoch % save_every) == (save_every - 1):
         checkpoint = {
             'epoch': epoch + 1,
             'state_dict': net.state_dict(),
             'optimizer': optimizer.state_dict()
         }
         model.save_ckp(checkpoint, ckp_dir, epoch)
+
     scheduler.step()
+
     for param_group in optimizer.param_groups:
         lr = param_group['lr']
         print(f'Learning rate updated to: {lr}')

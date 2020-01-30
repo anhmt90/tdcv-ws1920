@@ -4,3 +4,7 @@
 workspace_vars.mat
 
 local_only/
+**/__pycache__/
+**/play-ground.py
+**/.idea/
+assignment3/runs/*

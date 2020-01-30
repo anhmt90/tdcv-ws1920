@@ -10,8 +10,8 @@ def unnormalize(image):
     return image * std + mean
 
 
-def visualize_triplet(anchor, puller, pusher):
-    size = anchor['image'].size()[0]//4 # we are going to visualize only the first 4 images of the batch
+def visualize_triplet(anchor, puller, pusher, size = 4):
+    # size = anchor['image'].size()[0]//4 + 6 # we are going to visualize only the first 4 images of the batch
     fig, ax = plt.subplots(size, 3, figsize=(50,50))
 
     for i in range(size):
@@ -50,3 +50,10 @@ def visualize_histogram(angular_diffs):
     for i in range(4):
         plt.text(y_pos[i], bins[i], str(bins[i]))
     plt.show()
+
+def compute_angle(quaternion1, quaternion2):
+
+    assert quaternion1.shape[0] == quaternion2.shape[0] == 4
+    quaternion1 = quaternion1.numpy()
+    quaternion2 = quaternion2.numpy()
+    return 2 * np.rad2deg(np.arccos(np.abs(quaternion1 @ quaternion2)).item())

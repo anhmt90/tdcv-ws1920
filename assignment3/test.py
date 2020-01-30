@@ -21,7 +21,7 @@ def compute_histogram():
             m = test_dataset.__getitem__(match.queryIdx)
             n = database_dataset.__getitem__(match.trainIdx)
             if m['target'] == n['target']:
-                angular_diffs.append(2 * np.rad2deg(np.arccos(np.abs(np.dot(m['pose'].numpy(), n['pose'].numpy()))).item()))
+                angular_diffs.append(utils.compute_angle(m['pose'], n['pose']))
 
         utils.visualize_histogram(angular_diffs)
 

@@ -9,6 +9,10 @@ import torchvision
 from torchvision import transforms as T
 from torch.utils.data import Dataset
 
+import utils
+
+DEBUG = True
+
 
 def sorted_alphanumeric(data):
     convert = lambda text: int(text) if text.isdigit() else text.lower()
@@ -95,6 +99,11 @@ class TrainDataset(Dataset):
             pose_folder = pd.read_csv(os.path.join(self.dir_fine, folder, 'poses.txt'), sep=' ', header=None,
                                       skiprows=skip_idx)
             for img in sorted_alphanumeric(os.listdir(os.path.join(self.dir_fine, folder))):
+                #### DEBUG
+                if DEBUG:
+                    if len(self.targets) >= (50 * (c+1)):
+                        break
+
                 ext = os.path.splitext(img)[1]
                 if ext.lower() not in valid_images:
                     continue
@@ -102,6 +111,7 @@ class TrainDataset(Dataset):
                 self.poses.append(pose_folder.iloc[fidx].tolist())
                 self.targets.append(c)
                 fidx += 1
+
             c += 1
 
         # Now, do the same for images in real folder belonging to training set (split in training_split.txt)
@@ -115,6 +125,11 @@ class TrainDataset(Dataset):
             pose_folder = pd.read_csv(os.path.join(self.dir_real, folder, 'poses.txt'), sep=' ', header=None,
                                       skiprows=skip_idx)
             for img in sorted_alphanumeric(os.listdir(os.path.join(self.dir_real, folder))):
+                #### DEBUG
+                if DEBUG:
+                    if len(self.targets) >= (50 * 5) + (50 * (c + 1)):
+                        break
+
                 file, ext = os.path.splitext(img)
                 if ext.lower() not in valid_images:
                     continue
@@ -123,6 +138,7 @@ class TrainDataset(Dataset):
                     self.imgs.append(os.path.join(self.dir_real, folder, img))
                     self.poses.append(pose_folder.iloc[int(file[len('real'):])].tolist())
                     self.targets.append(c)
+
             c += 1
 
     def __len__(self):
@@ -172,10 +188,12 @@ class DbDataset(Dataset):
     def get_puller(self, anchor_pose, anchor_class):
         indices = []
         for anchor_c, anchor_p in zip(anchor_class, anchor_pose):
-            poses = self.per_class_list[anchor_c]['poses'].tolist()
+            # poses = self.per_class_list[anchor_c]['poses'].tolist()
+            poses = torch.FloatTensor(self.per_class_list[anchor_c]['poses'])
             dist = []
             for p in poses:
-                dist.append(2 * np.arccos((np.dot(anchor_p.numpy(), p))**2 -1).item())
+                # dist.append(2 * np.arccos((np.dot(anchor_p.numpy(), p))**2 -1).item())
+                dist.append(utils.compute_angle(anchor_p, p))
             indices.append(np.argmin(dist))
         return indices
 
