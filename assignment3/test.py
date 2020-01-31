@@ -6,11 +6,12 @@ import numpy as np
 import data
 import model
 import utils
+from utils import BATCH_SIZE
 
 
 def compute_histogram():
-    testloader = DataLoader(test_dataset, batch_size*3, shuffle=False)
-    dbloader = DataLoader(database_dataset, batch_size*3, shuffle=False)
+    testloader = DataLoader(test_dataset, BATCH_SIZE, shuffle=False)
+    dbloader = DataLoader(database_dataset, BATCH_SIZE, shuffle=False)
 
     with torch.no_grad():
         output_test = np.concatenate([net(samples['image']).numpy() for j, samples in enumerate(testloader)])
@@ -43,5 +44,4 @@ if __name__ == '__main__':
     test_dataset = data.TestDataset(root, transform=transform)  # Requires normalization
     database_dataset = data.DatabaseDataset(root, transform=transform)  # Requires normalization
 
-    batch_size = 256
     compute_histogram()

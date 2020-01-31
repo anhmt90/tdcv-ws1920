@@ -8,6 +8,7 @@ import utils
 import numpy as np
 from loss import *
 from torch.utils.tensorboard import SummaryWriter
+from utils import BATCH_SIZE
 
 np.seterr(all='raise')
 
@@ -15,7 +16,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 root = './dataset'
 PATH = './net.pth'
 ckp_dir = 'models'  # Path of directory where checkpoints of model will be saved during training
-save_every = 1
+save_every = 4
 # Writer will output to ./runs/ directory by default
 # To visualize results write in terminal tensorboard --logdir=runs
 # tensorflow must be install in environment
@@ -32,10 +33,9 @@ transform = T.Compose([T.ToTensor(), T.Normalize(mean, std)])
 train_dataset = data.TrainDataset(root, transform=transform)  # Requires normalization
 db_dataset = data.DbDataset(root, transform=transform)  # Requires normalization
 
-batch_size = 256
 
 # Dataloader to iterate through TRAIN SET
-dataloader = DataLoader(train_dataset, batch_size, shuffle=True)
+dataloader = DataLoader(train_dataset, BATCH_SIZE, shuffle=True)
 num_batches = len(dataloader)
 
 # Create the model
@@ -62,7 +62,7 @@ for epoch in range(num_epochs):
 
         # Get a dict containing the images and poses for those indexes
         puller = db_dataset.get_triplet(puller_idx, anchor['target'])
-        class_pusher = np.random.randint(0, 5, size=batch_size)  # Now pusher comes from any class of the db Dataset
+        class_pusher = np.random.randint(0, 5, size=BATCH_SIZE)  # Now pusher comes from any class of the db Dataset
         pusher = db_dataset.get_triplet(pusher_idx, class_pusher)
 
         # This one to take pusher from same class as anchor and puller
@@ -75,9 +75,9 @@ for epoch in range(num_epochs):
         # to have the shape stated on the homework :
         # anchor_1,puller_1,pusher_1,anchor_2,puller_2,pusher_2.....,anchor_batch_size,puller_batch_size,pusher_batch_size
         inputs = torch.zeros_like(anchor['image']).repeat(3, 1, 1, 1)
-        inputs[0:batch_size * 3:3, :, :, :] = anchor['image']
-        inputs[1:batch_size * 3:3, :, :, :] = puller['image']
-        inputs[2:batch_size * 3:3, :, :, :] = pusher['image']
+        inputs[0:BATCH_SIZE * 3:3, :, :, :] = anchor['image']
+        inputs[1:BATCH_SIZE * 3:3, :, :, :] = puller['image']
+        inputs[2:BATCH_SIZE * 3:3, :, :, :] = pusher['image']
         inputs = inputs.to(device)
         # zero the parameter gradients
         optimizer.zero_grad()

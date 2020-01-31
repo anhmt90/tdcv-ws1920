@@ -5,6 +5,7 @@ import cv2
 mean = [0.1173, 0.0984, 0.0915]
 std = [0.2281, 0.1765, 0.1486]
 
+BATCH_SIZE = 32
 
 def unnormalize(image):
     return image * std + mean

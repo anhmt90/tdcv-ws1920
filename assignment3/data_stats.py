@@ -7,7 +7,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 root = './dataset'
 
 train_dataset = data.TrainDataset(root)
-dataloader = DataLoader(train_dataset, batch_size=10, shuffle=False)
+dataloader = DataLoader(train_dataset, batch_size=256, shuffle=False)
 
 mean = 0.
 std = 0.
