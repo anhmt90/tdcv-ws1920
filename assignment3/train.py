@@ -9,6 +9,8 @@ import numpy as np
 from loss import *
 from torch.utils.tensorboard import SummaryWriter
 
+np.seterr(all='raise')
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 root = './dataset'
 PATH = './net.pth'
@@ -30,7 +32,7 @@ transform = T.Compose([T.ToTensor(), T.Normalize(mean, std)])
 train_dataset = data.TrainDataset(root, transform=transform)  # Requires normalization
 db_dataset = data.DbDataset(root, transform=transform)  # Requires normalization
 
-batch_size = 128
+batch_size = 256
 
 # Dataloader to iterate through TRAIN SET
 dataloader = DataLoader(train_dataset, batch_size, shuffle=True)
@@ -45,7 +47,7 @@ net = net.to(device)
 learning_rate = 1e-3
 optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate, betas=(0, 0))
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.95, last_epoch=-1)
-num_epochs = 3
+num_epochs = 50
 
 # TRAINING
 for epoch in range(num_epochs):
@@ -89,9 +91,13 @@ for epoch in range(num_epochs):
         # print statistics
         running_loss += loss.item()
         iteration = epoch * num_batches + batch_i
-        if iteration % 10 == 9:  # print every 10 batches
-            print('iter: %d, loss: %.3f' % (iteration, running_loss))
+        if (iteration + 1) % 10 == 0:  # print every 10 batches
+            print('iter: %d, loss: %.3f' % (iteration + 1, running_loss))
             writer.add_scalar('Loss', running_loss, iteration)
+            running_loss = 0.0
+
+        # if (iteration + 1) % 1000 == 0:
+        #     writer.add_histogram('Histogram of ')
 
     if (epoch % save_every) == (save_every - 1):
         checkpoint = {

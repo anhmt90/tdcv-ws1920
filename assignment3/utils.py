@@ -31,9 +31,9 @@ def knn_to_dbdataset(descriptors_testdataset, descriptors_dbdataset):
     return matches
 
 
-def visualize_histogram(angular_diffs):
+def make_histogram(data):
     bins = np.zeros(4)
-    for angular_diff in angular_diffs:
+    for angular_diff in data:
         if angular_diff < 10:
             bins[0:4] += 1
         elif 10 < angular_diff < 20:
@@ -42,6 +42,11 @@ def visualize_histogram(angular_diffs):
             bins[2:4] += 1
         elif 40 < angular_diff < 180:
             bins[3] += 1
+
+    return bins
+
+def visualize_histogram(angular_diffs):
+    bins = make_histogram(angular_diffs)
 
     bin_labels = ('<10', '<20', '<40', '<180')
     y_pos = np.arange(len(bin_labels))
@@ -56,4 +61,6 @@ def compute_angle(quaternion1, quaternion2):
     assert quaternion1.shape[0] == quaternion2.shape[0] == 4
     quaternion1 = quaternion1.numpy()
     quaternion2 = quaternion2.numpy()
-    return 2 * np.rad2deg(np.arccos(np.abs(quaternion1 @ quaternion2)).item())
+    dot_res = np.minimum(1, quaternion1 @ quaternion2)
+    dot_res = np.maximum(-1, dot_res)
+    return 2 * np.rad2deg(np.arccos(np.abs(dot_res)).item())

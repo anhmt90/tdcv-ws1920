@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 
 import utils
 
-DEBUG = True
+DEBUG = False
 
 
 def sorted_alphanumeric(data):
