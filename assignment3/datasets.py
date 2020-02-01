@@ -10,14 +10,13 @@ from torch.utils.data import Dataset
 
 import utils
 
-DEBUG = True
+DEBUG = False
 
 
 def sorted_alphanumeric(data):
     convert = lambda text: int(text) if text.isdigit() else text.lower()
     alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key)]
     return sorted(data, key=alphanum_key)
-
 
 
 class TEST(Dataset):
@@ -171,7 +170,6 @@ class DB(Dataset):
         self.poses = []
         self.targets = []
 
-        self.per_class_list = []
         valid_images = [".jpeg", ".jpg", ".png"]
 
         class_ = 0
@@ -196,23 +194,21 @@ class DB(Dataset):
 
                 self.targets.append(class_)
                 file_idx += 1
-
             class_ += 1
-            self.per_class_list.append(pd.DataFrame(zip(imgs_, poses_), columns=['images', 'poses']))
-
-        self.imgs_per_class = len(self.per_class_list[0]['images'])
+        self.imgs_per_class = len(self.targets) // class_
 
     def get_puller_idx(self, anchor_pose, anchor_class):
         indices = []
+        target_arr = np.array(self.targets)
         for anchor_c, anchor_p in zip(anchor_class, anchor_pose):
-            # poses = self.per_class_list[anchor_c]['poses'].tolist()
-            poses = torch.FloatTensor(self.per_class_list[anchor_c]['poses'])
+            start, end = self.get_slice(anchor_c)
+            poses = np.array(self.poses)[start:end, :]
             dist = []
             for p in poses:
-                # dist.append(2 * np.arccos((np.dot(anchor_p.numpy(), p))**2 -1).item())
                 dist.append(utils.compute_angle(anchor_p, p))
             indices.append(np.argmin(dist))
         return indices
+
 
     def get_pusher_idx(self, puller_idx):
         indices = []
@@ -226,9 +222,12 @@ class DB(Dataset):
 
     def get_triplet(self, idx, anchor_class):
         image_list, pose_list = [], []
+        target_arr = np.array(self.targets)
+
         for i, anchor_c in zip(idx, anchor_class):
-            img = Image.open(self.per_class_list[anchor_c]['images'].iloc[i])
-            pose = torch.Tensor(self.per_class_list[anchor_c]['poses'].iloc[i])
+            start, end = self.get_slice(anchor_c)
+            img = Image.open(np.array(self.imgs)[start:end][i])
+            pose = torch.Tensor(np.array(self.poses)[start:end][i])
             if self.transform:
                 img = self.transform(img)
             else:
@@ -238,8 +237,13 @@ class DB(Dataset):
         train_sample = {'image': torch.cat(image_list, dim=0), 'pose': torch.cat(pose_list, dim=0)}
         return train_sample
 
+    def get_slice(self, anchor_c):
+        start = anchor_c.item() * self.imgs_per_class
+        end = start + self.imgs_per_class
+        return start, end
+
     def __len__(self):
-        return self.imgs_per_class
+        return len(self.targets)
 
     def __getitem__(self, idx):
         img = Image.open(self.imgs[idx])
@@ -251,50 +255,3 @@ class DB(Dataset):
             img = T.ToTensor()(img)
         train_sample = {'image': img, 'pose': pose, 'target': target}
         return train_sample
-
-
-class DATABASE(Dataset):
-    def __init__(self, root, transform=None):
-        """
-        Args:
-            root (string): Path to dataset folder.
-            transform (callable, optional): Optional transform to be applied
-                on a sample.
-        """
-        self.dir = os.path.join(root, 'coarse')
-        self.transform = transform
-        self.imgs = []
-        self.poses = []
-        self.targets = []
-        valid_images = [".jpeg", ".jpg", ".png"]
-        c = 0
-        for folder in sorted(os.listdir(self.dir)):
-            fidx = 0
-            num_lines = sum(1 for _ in open(os.path.join(self.dir, folder, 'poses.txt')))
-            skip_idx = list(range(0, num_lines - 1, 2))
-            pose_folder = pd.read_csv(os.path.join(self.dir, folder, 'poses.txt'), sep=' ', header=None,
-                                      skiprows=skip_idx)
-            for img in sorted_alphanumeric(os.listdir(os.path.join(self.dir, folder))):
-                ext = os.path.splitext(img)[1]
-                if ext.lower() not in valid_images:
-                    continue
-                self.imgs.append(os.path.join(self.dir, folder, img))
-                self.poses.append(pose_folder.iloc[fidx].tolist())
-                self.targets.append(c)
-                fidx += 1
-            c += 1
-
-
-    def __len__(self):
-        return len(self.imgs)
-
-    def __getitem__(self, idx):
-        img = Image.open(self.imgs[idx])
-        pose = torch.Tensor(self.poses[idx])
-        target = self.targets[idx]
-        if self.transform:
-            img = self.transform(img)
-        else:
-            img = T.ToTensor()(img)
-        test_sample = {'image': img, 'pose': pose, 'target': target}
-        return test_sample

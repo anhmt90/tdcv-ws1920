@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import data_generator
 import cv2
+import torch
 
 # mean = [0.1173, 0.0984, 0.0915]
 # std = [0.2281, 0.1765, 0.1486]
@@ -59,10 +60,12 @@ def visualize_histogram(angular_diffs):
     plt.show()
 
 def compute_angle(quaternion1, quaternion2):
-
     assert quaternion1.shape[0] == quaternion2.shape[0] == 4
-    quaternion1 = quaternion1.numpy()
-    quaternion2 = quaternion2.numpy()
+    if torch.is_tensor(quaternion1):
+        quaternion1 = quaternion1.numpy()
+    if torch.is_tensor(quaternion2):
+        quaternion2 = quaternion2.numpy()
+
     dot_res = np.minimum(1, quaternion1 @ quaternion2)
     dot_res = np.maximum(-1, dot_res)
     return 2 * np.rad2deg(np.arccos(np.abs(dot_res)).item())

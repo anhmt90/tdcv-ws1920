@@ -26,9 +26,6 @@ class DataGenerator():
         self.db_dataset = datasets.DB(root, transform=self.transform)
         self.test_dataset = datasets.TEST(root, transform=self.transform)
 
-        self.database_dataset = datasets.DATABASE(root, transform=self.transform)
-        self.database_loader = DataLoader(self.database_dataset, batch_size, shuffle=False)
-
         self.train_loader = DataLoader(dataset=self.train_dataset, batch_size = batch_size, shuffle=True)
         self.db_loader = DataLoader(dataset=self.db_dataset, batch_size = batch_size, shuffle=False)
         self.test_loader = DataLoader(dataset = self.test_dataset, batch_size = batch_size, shuffle=False)
