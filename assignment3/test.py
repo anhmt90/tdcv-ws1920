@@ -3,8 +3,8 @@ import torch
 from torch.utils.data import DataLoader
 import torchvision.transforms as T
 import numpy as np
-import data
-import model
+import datasets
+import net
 import utils
 from utils import BATCH_SIZE
 
@@ -14,8 +14,8 @@ def compute_histogram():
     dbloader = DataLoader(database_dataset, BATCH_SIZE, shuffle=False)
 
     with torch.no_grad():
-        output_test = np.concatenate([net(samples['image']).numpy() for j, samples in enumerate(testloader)])
-        output_db = np.concatenate([net(samples['image']).numpy() for j, samples in enumerate(dbloader)])
+        output_test = np.concatenate([model(samples['image']).numpy() for j, samples in enumerate(testloader)])
+        output_db = np.concatenate([model(samples['image']).numpy() for j, samples in enumerate(dbloader)])
 
         angular_diffs = []
         for match in utils.knn_to_dbdataset(output_test, output_db):
@@ -27,21 +27,23 @@ def compute_histogram():
         utils.visualize_histogram(angular_diffs)
 
 
-if __name__ == '__main__':
-    root = './dataset'
-    ckp_dir = 'models'
-    ckp_file = 'checkpoint0.pt'
-    ckp_path = os.path.join(ckp_dir, ckp_file)
-    net = model.Net()
-    net, _ = model.load_ckp(ckp_path, net)
-    # mean and std from the train dataset
-    mean = [0.1173, 0.0984, 0.0915]
-    std = [0.2281, 0.1765, 0.1486]
+root = './dataset'
+ckp_dir = 'models'
+ckp_file = 'checkpoint4.pt'
+ckp_path = os.path.join(ckp_dir, ckp_file)
+model = net.Net()
+model, _ = net.load_ckp(ckp_path, model)
+# mean and std from the train dataset
+# mean = [0.1173, 0.0984, 0.0915]
+# std = [0.2281, 0.1765, 0.1486]
 
-    # Define transformations that will be apply to the images
-    transform = T.Compose([T.ToTensor(), T.Normalize(mean, std)])
+# Define transformations that will be apply to the images
+transform = T.Compose([
+                       T.ToTensor(),
+                       T.Normalize((0.485, 0.456, 0.406),(0.229, 0.224, 0.225))
+            ])
 
-    test_dataset = data.TestDataset(root, transform=transform)  # Requires normalization
-    database_dataset = data.DatabaseDataset(root, transform=transform)  # Requires normalization
+test_dataset = datasets.TEST(root, transform=transform)  # Requires normalization
+database_dataset = datasets.DB(root, transform=transform)  # Requires normalization
 
-    compute_histogram()
+compute_histogram()

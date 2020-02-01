@@ -5,13 +5,12 @@ import numpy as np
 from PIL import Image
 import torch
 import torch.utils.data
-import torchvision
 from torchvision import transforms as T
 from torch.utils.data import Dataset
 
 import utils
 
-DEBUG = False
+DEBUG = True
 
 
 def sorted_alphanumeric(data):
@@ -20,7 +19,8 @@ def sorted_alphanumeric(data):
     return sorted(data, key=alphanum_key)
 
 
-class TestDataset(Dataset):
+
+class TEST(Dataset):
     def __init__(self, root, transform=None):
         """
         Args:
@@ -35,7 +35,7 @@ class TestDataset(Dataset):
         self.targets = []
         valid_images = [".jpeg", ".jpg", ".png"]
         split_list = pd.read_csv(os.path.join(self.dir, 'training_split.txt'), header=None).values.flatten().tolist()
-        c = 0
+        class_ = 0
         skip_one = 0
 
         for folder in sorted(os.listdir(self.dir)):
@@ -56,8 +56,8 @@ class TestDataset(Dataset):
                 if img_id not in split_list:  # check if image_id is included in training split
                     self.imgs.append(os.path.join(self.dir, folder, img))
                     self.poses.append(pose_folder.iloc[int(file[len('real'):])].tolist())
-                    self.targets.append(c)
-            c += 1
+                    self.targets.append(class_)
+            class_ += 1
 
     def __len__(self):
         return len(self.imgs)
@@ -74,7 +74,7 @@ class TestDataset(Dataset):
         return test_sample
 
 
-class TrainDataset(Dataset):
+class TRAIN(Dataset):
     def __init__(self, root, transform=None):
         """
         Args:
@@ -156,7 +156,7 @@ class TrainDataset(Dataset):
         return train_sample
 
 
-class DbDataset(Dataset):
+class DB(Dataset):
     def __init__(self, root, transform=None):
         """
         Args:
@@ -166,26 +166,43 @@ class DbDataset(Dataset):
         """
         self.dir = os.path.join(root, 'coarse')
         self.transform = transform
+
+        self.imgs = []
+        self.poses = []
+        self.targets = []
+
         self.per_class_list = []
         valid_images = [".jpeg", ".jpg", ".png"]
+
+        class_ = 0
         for folder in sorted(os.listdir(self.dir)):
-            imgs = []
-            poses = []
-            fidx = 0
+            imgs_ = []
+            poses_ = []
+
             num_lines = sum(1 for _ in open(os.path.join(self.dir, folder, 'poses.txt')))
             skip_idx = list(range(0, num_lines - 1, 2))
             pose_folder = pd.read_csv(os.path.join(self.dir, folder, 'poses.txt'), sep=' ', header=None, skiprows=skip_idx)
+
+            file_idx = 0
             for img in sorted_alphanumeric(os.listdir(os.path.join(self.dir, folder))):
                 ext = os.path.splitext(img)[1]
                 if ext.lower() not in valid_images:
                     continue
-                imgs.append(os.path.join(self.dir, folder, img))
-                poses.append(pose_folder.iloc[fidx].tolist())
-                fidx += 1
-            self.per_class_list.append(pd.DataFrame(zip(imgs, poses), columns=['images', 'poses']))
-        self.imgs_per_class = len(imgs)
+                self.imgs.append(os.path.join(self.dir, folder, img))
+                imgs_.append(os.path.join(self.dir, folder, img))
 
-    def get_puller(self, anchor_pose, anchor_class):
+                self.poses.append(pose_folder.iloc[file_idx].tolist())
+                poses_.append(pose_folder.iloc[file_idx].tolist())
+
+                self.targets.append(class_)
+                file_idx += 1
+
+            class_ += 1
+            self.per_class_list.append(pd.DataFrame(zip(imgs_, poses_), columns=['images', 'poses']))
+
+        self.imgs_per_class = len(self.per_class_list[0]['images'])
+
+    def get_puller_idx(self, anchor_pose, anchor_class):
         indices = []
         for anchor_c, anchor_p in zip(anchor_class, anchor_pose):
             # poses = self.per_class_list[anchor_c]['poses'].tolist()
@@ -197,7 +214,7 @@ class DbDataset(Dataset):
             indices.append(np.argmin(dist))
         return indices
 
-    def get_pusher(self, puller_idx):
+    def get_pusher_idx(self, puller_idx):
         indices = []
         for i in puller_idx:
             while True:
@@ -236,7 +253,7 @@ class DbDataset(Dataset):
         return train_sample
 
 
-class DatabaseDataset(Dataset):
+class DATABASE(Dataset):
     def __init__(self, root, transform=None):
         """
         Args:
@@ -266,6 +283,7 @@ class DatabaseDataset(Dataset):
                 self.targets.append(c)
                 fidx += 1
             c += 1
+
 
     def __len__(self):
         return len(self.imgs)

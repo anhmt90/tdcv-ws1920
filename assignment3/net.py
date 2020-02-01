@@ -26,6 +26,7 @@ class Net(nn.Module):
         return x
 
 
+
 def save_ckp(state, checkpoint_dir, epoch):
     f_path = os.path.join(checkpoint_dir, f'checkpoint{epoch}.pt')
     torch.save(state, f_path)
