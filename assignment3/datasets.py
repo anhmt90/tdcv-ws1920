@@ -10,8 +10,8 @@ from torch.utils.data import Dataset
 
 import utils
 
-DEBUG = False
-
+DEBUG = True
+DEBUG__NUM_EACH_CLASS = 20
 
 def sorted_alphanumeric(data):
     convert = lambda text: int(text) if text.isdigit() else text.lower()
@@ -100,7 +100,7 @@ class TRAIN(Dataset):
             for img in sorted_alphanumeric(os.listdir(os.path.join(self.dir_fine, folder))):
                 #### DEBUG
                 if DEBUG:
-                    if len(self.targets) >= (50 * (c+1)):
+                    if len(self.targets) >= (DEBUG__NUM_EACH_CLASS * (c + 1)):
                         break
 
                 ext = os.path.splitext(img)[1]
@@ -126,7 +126,7 @@ class TRAIN(Dataset):
             for img in sorted_alphanumeric(os.listdir(os.path.join(self.dir_real, folder))):
                 #### DEBUG
                 if DEBUG:
-                    if len(self.targets) >= (50 * 5) + (50 * (c + 1)):
+                    if len(self.targets) >= (DEBUG__NUM_EACH_CLASS * 5) + (DEBUG__NUM_EACH_CLASS * (c + 1)):
                         break
 
                 file, ext = os.path.splitext(img)

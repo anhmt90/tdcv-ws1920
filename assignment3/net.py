@@ -4,6 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import shutil
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 class Net(nn.Module):
     def __init__(self):
         super().__init__()
@@ -26,6 +28,10 @@ class Net(nn.Module):
         return x
 
 
+def compute_descriptor(model, dataloader):
+    with torch.no_grad():
+        des = torch.cat([model(input['image']) for _, input in enumerate(dataloader)])
+    return des
 
 def save_ckp(state, checkpoint_dir, epoch):
     f_path = os.path.join(checkpoint_dir, f'checkpoint{epoch}.pt')
@@ -33,6 +39,7 @@ def save_ckp(state, checkpoint_dir, epoch):
 
 
 def load_ckp(checkpoint_fpath, model):
-    checkpoint = torch.load(checkpoint_fpath)
+    # checkpoint = torch.load(checkpoint_fpath, map_location ='cpu') if (device.type == 'cpu') else torch.load(checkpoint_fpath)
+    checkpoint = torch.load(checkpoint_fpath, map_location = str(device))
     model.load_state_dict(checkpoint['state_dict'])
     return model, checkpoint['epoch']

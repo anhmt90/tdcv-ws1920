@@ -8,6 +8,8 @@ import utils
 from matplotlib import pyplot as plt
 import cv2
 
+
+
 train_mean = [0.20495705, 0.17493474, 0.1553751 ]
 train_std = [0.26818034, 0.22731194, 0.21109529]
 
@@ -16,6 +18,15 @@ db_std = [0.24001887, 0.19127475, 0.17848527]
 
 test_mean = [0.39331356, 0.33969042, 0.29303524]
 test_std = [0.22380222, 0.20981997, 0.21034092]
+
+
+
+def train_denormalize(image):
+    return np.clip(image * train_std + train_mean, 0, 1)
+
+def db_denormalize(image):
+    return np.clip(image * db_std + db_mean, 0, 1)
+
 
 
 class DataGenerator():
@@ -50,6 +61,9 @@ class DataGenerator():
 
         self.num_batches = len(self.train_loader)
 
+        classes = ['ape', 'benchvise', 'cam', 'cat', 'duck']
+        self.test_labels = [classes[t] for t in self.test_dataset.targets]
+
 
     def make_batch(self, anchor):
         # From each image on a batch of anchor select the puller and pusher indexes
@@ -74,7 +88,6 @@ class DataGenerator():
         inputs[0: self.batch_size * 3:3, :, :, :] = anchor['image']
         inputs[1: self.batch_size * 3:3, :, :, :] = puller['image']
         inputs[2: self.batch_size * 3:3, :, :, :] = pusher['image']
-
         return inputs
 
 
