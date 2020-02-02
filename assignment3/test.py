@@ -6,21 +6,24 @@ import numpy as np
 import datasets
 import net
 import utils
-from utils import BATCH_SIZE
+import data_generator
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def compute_histogram():
-    testloader = DataLoader(test_dataset, BATCH_SIZE, shuffle=False)
-    dbloader = DataLoader(database_dataset, BATCH_SIZE, shuffle=False)
+    dg = data_generator.DataGenerator(root = './dataset')
 
     with torch.no_grad():
-        output_test = np.concatenate([model(samples['image']).numpy() for j, samples in enumerate(testloader)])
-        output_db = np.concatenate([model(samples['image']).numpy() for j, samples in enumerate(dbloader)])
+        output_test = torch.cat([model(test_input['image']) for j, test_input in enumerate(dg.test_loader)])
+        output_db = torch.cat([model(db_input['image']) for j, db_input in enumerate(dg.db_loader)])
+
+        output_test = output_test.cpu().numpy()
+        output_db = output_db.cpu().numpy()
 
         angular_diffs = []
         for match in utils.knn_to_dbdataset(output_test, output_db):
-            m = test_dataset.__getitem__(match.queryIdx)
-            n = database_dataset.__getitem__(match.trainIdx)
+            m = dg.test_dataset.__getitem__(match.queryIdx)
+            n = dg.db_dataset.__getitem__(match.trainIdx)
             if m['target'] == n['target']:
                 angular_diffs.append(utils.compute_angle(m['pose'], n['pose']))
 
@@ -29,21 +32,9 @@ def compute_histogram():
 
 root = './dataset'
 ckp_dir = 'models'
-ckp_file = 'checkpoint4.pt'
+ckp_file = 'checkpoint0.pt'
 ckp_path = os.path.join(ckp_dir, ckp_file)
 model = net.Net()
 model, _ = net.load_ckp(ckp_path, model)
-# mean and std from the train dataset
-# mean = [0.1173, 0.0984, 0.0915]
-# std = [0.2281, 0.1765, 0.1486]
-
-# Define transformations that will be apply to the images
-transform = T.Compose([
-                       T.ToTensor(),
-                       T.Normalize((0.485, 0.456, 0.406),(0.229, 0.224, 0.225))
-            ])
-
-test_dataset = datasets.TEST(root, transform=transform)  # Requires normalization
-database_dataset = datasets.DB(root, transform=transform)  # Requires normalization
 
 compute_histogram()

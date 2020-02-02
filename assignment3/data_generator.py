@@ -65,7 +65,7 @@ class DataGenerator():
         # pusher = db_dataset.get_triplet(pusher_idx, anchor['target'])
 
         # If you want to visualize some images of the batch use this function
-        # utils.visualize_triplet(anchor, puller, pusher, size=6)
+        # utils.visualize_triplet(anchor, puller, pusher, num_display=6)
 
         # Create a tensor of zeros to reorganize the anchor,puller and pusher images
         # to have the shape stated on the homework :
