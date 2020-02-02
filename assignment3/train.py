@@ -10,7 +10,7 @@ np.seterr(all='raise')
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 PATH = './model.pth'
 ckp_dir = 'models'  # Path of directory where checkpoints of model will be saved during training
-save_every = 3
+save_every = 1
 # Writer will output to ./runs/ directory by default
 # To visualize results write in terminal tensorboard --logdir=runs
 # tensorflow must be install in environment

@@ -199,7 +199,6 @@ class DB(Dataset):
 
     def get_puller_idx(self, anchor_pose, anchor_class):
         indices = []
-        target_arr = np.array(self.targets)
         for anchor_c, anchor_p in zip(anchor_class, anchor_pose):
             start, end = self.get_slice(anchor_c)
             poses = np.array(self.poses)[start:end, :]
@@ -222,8 +221,6 @@ class DB(Dataset):
 
     def get_triplet(self, idx, anchor_class):
         image_list, pose_list = [], []
-        target_arr = np.array(self.targets)
-
         for i, anchor_c in zip(idx, anchor_class):
             start, end = self.get_slice(anchor_c)
             img = Image.open(np.array(self.imgs)[start:end][i])

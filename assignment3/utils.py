@@ -9,18 +9,26 @@ import torch
 
 BATCH_SIZE = 128
 
-def unnormalize(image):
-    return image * data_generator.mean + data_generator.std
+# def clip(image):
+#     image = np.maximum(0, image)
+#     image = np.minimum(1, image)
+#     return image
 
+def train_denormalize(image):
+    return np.clip(image * data_generator.train_std + data_generator.train_mean, 0, 1)
+
+
+def db_denormalize(image):
+    return np.clip(image * data_generator.db_std + data_generator.db_mean, 0, 1)
 
 def visualize_triplet(anchor, puller, pusher, size = 4):
     # size = anchor['image'].size()[0]//4 + 6 # we are going to visualize only the first 4 images of the batch
     fig, ax = plt.subplots(size, 3, figsize=(50,50))
 
     for i in range(size):
-        ax[i, 0].imshow(unnormalize(anchor['image'][i].numpy().transpose(1, 2, 0)))
-        ax[i, 1].imshow(unnormalize(puller['image'][i].numpy().transpose(1, 2, 0)))
-        ax[i, 2].imshow(unnormalize(pusher['image'][i].numpy().transpose(1, 2, 0)))
+        ax[i, 0].imshow(train_denormalize(anchor['image'][i].numpy().transpose(1, 2, 0)))
+        ax[i, 1].imshow(db_denormalize(puller['image'][i].numpy().transpose(1, 2, 0)))
+        ax[i, 2].imshow(db_denormalize(pusher['image'][i].numpy().transpose(1, 2, 0)))
         ax[i, 0].set_axis_off()
         ax[i, 1].set_axis_off()
         ax[i, 2].set_axis_off()
@@ -66,7 +74,8 @@ def compute_angle(quaternion1, quaternion2):
     if torch.is_tensor(quaternion2):
         quaternion2 = quaternion2.numpy()
 
-    dot_res = np.minimum(1, quaternion1 @ quaternion2)
-    dot_res = np.maximum(-1, dot_res)
+    # dot_res = np.minimum(1, quaternion1 @ quaternion2)
+    # dot_res = np.maximum(-1, dot_res)
+    dot_res = np.clip(quaternion1 @ quaternion2, -1, 1)
     return 2 * np.rad2deg(np.arccos(np.abs(dot_res)).item())
 
