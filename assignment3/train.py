@@ -19,12 +19,12 @@ writer = SummaryWriter()
 model = net.Net().to(device)
 # net.load_state_dict(torch.load(PATH))
 
-learning_rate = 1e-3
+learning_rate = 0.001
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, betas=(0, 0))
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.95, last_epoch=-1)
 
-NUM_EPOCHS = 15
-BATCH_SIZE = 128
+NUM_EPOCHS = 5
+BATCH_SIZE = 32
 SAVE_CKP_EVERY = 1
 UPDATE_LR_EVERY = 5
 
@@ -36,7 +36,7 @@ running_acc_history = []
 
 def print_loss_acc(DEBUG, running_loss):
     if DEBUG:
-        running_corrects = viz.compute_histogram(model, dg, logging=False)
+        running_corrects = viz.compute_histogram(model, dg, count_only=True)
         epoch_acc = float(running_corrects) / len(dg.test_dataset)
         running_acc_history.append(epoch_acc)
     epoch_loss = running_loss / len(dg.train_loader)
@@ -47,6 +47,18 @@ def print_loss_acc(DEBUG, running_loss):
     else:
         print("Epoch avg. loss: {:.4f}".format(epoch_loss))
 
+
+def write_log(iter_i):
+    print("Reached iter {}, storing histogram...".format(iter_i))
+    test_descriptors = net.compute_descriptor(model, dg.test_loader)
+    angular_diffs = viz.compute_histogram(model, dg, test_descriptors=test_descriptors)
+    histogram_bins = viz.make_histogram(angular_diffs)
+    writer.add_scalars("Accuracy",
+                       {'true_positives': histogram_bins[3],
+                        'percentage': histogram_bins[3] / len(dg.test_dataset)})
+    writer.add_histogram("Histogram of angular differences between TEST set and DB set",
+                         histogram_bins, global_step=iter_i)
+    viz.store_embeddings(writer, test_descriptors, dg.test_labels)
 
 ##############################################################
 #                         TRAINING                           #
@@ -78,21 +90,7 @@ def train():
             if iter_i % 10 == 0:
                 writer.add_scalar("Loss", loss.item(), iter_i)
             if iter_i % 1000 == 0:
-                print("Reached iter {}, storing histogram...".format(iter_i))
-                test_descriptors = torch.cat(
-                    [model(test_input['image']) for j, test_input in enumerate(dg.test_loader)])
-
-                angular_diffs = viz.compute_histogram(model, dg, test_descriptors=test_descriptors)
-                histogram_bins = viz.make_histogram(angular_diffs)
-
-                writer.add_scalars("Accuracy",
-                                   {'true_positives': histogram_bins[3],
-                                    'percentage': histogram_bins[3] / len(dg.test_dataset)})
-                writer.add_histogram("Histogram of angular differences between TEST set and DB set",
-                                     histogram_bins, global_step=iter_i)
-                viz.store_embeddings(writer, test_descriptors, dg.test_labels)
-
-
+                write_log(iter_i)
 
         else:
             # Note: set DEBUG=True to see classification acc. after every epoch but comes with the cost of
@@ -119,6 +117,7 @@ def train():
     print("\nHistory:")
     print(running_loss_history)
     print(running_acc_history)
+    write_log(iter_i)
 
 
 if __name__ == '__main__':

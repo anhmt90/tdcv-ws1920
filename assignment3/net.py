@@ -2,7 +2,6 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import shutil
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -30,7 +29,7 @@ class Net(nn.Module):
 
 def compute_descriptor(model, dataloader):
     with torch.no_grad():
-        des = torch.cat([model(input['image']) for _, input in enumerate(dataloader)])
+        des = torch.cat([model(input['image'].to(device)) for _, input in enumerate(dataloader)])
     return des
 
 def save_ckp(state, checkpoint_dir, epoch):

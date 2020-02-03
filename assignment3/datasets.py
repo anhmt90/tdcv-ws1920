@@ -10,7 +10,7 @@ from torch.utils.data import Dataset
 
 import utils
 
-DEBUG = True
+DEBUG = False
 DEBUG__NUM_EACH_CLASS = 20
 
 def sorted_alphanumeric(data):

@@ -4,7 +4,7 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 from PIL import Image
 import datasets
-import utils
+import viz
 from matplotlib import pyplot as plt
 import cv2
 
@@ -79,7 +79,7 @@ class DataGenerator():
         # pusher = db_dataset.get_triplet(pusher_idx, anchor['target'])
 
         # If you want to visualize some images of the batch use this function
-        # utils.visualize_triplet(anchor, puller, pusher, num_display=6)
+        # viz.visualize_triplet(anchor, puller, pusher, num_display=6)
 
         # Create a tensor of zeros to reorganize the anchor,puller and pusher images
         # to have the shape stated on the homework :

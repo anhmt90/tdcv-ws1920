@@ -1,5 +1,4 @@
 import numpy as np
-import data_generator
 import cv2
 import torch
 
@@ -11,7 +10,7 @@ def convert_to_numpy_array(tensor1, tensor2):
         tensor2 = tensor2.numpy()
     return tensor1, tensor2
 
-def knn_to_dbdataset(test_descriptors, db_descriptors):
+def knn_matching_search(test_descriptors, db_descriptors):
     test_descriptors, db_descriptors = convert_to_numpy_array(test_descriptors, db_descriptors)
     bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
     matches = bf.match(test_descriptors, db_descriptors)
