@@ -72,9 +72,6 @@ def compute_histogram(model, dg, count_only=False, test_descriptors=None):
         test_descriptors = net.compute_descriptor(model, dg.test_loader)
     db_descriptors = net.compute_descriptor(model, dg.db_loader)
 
-    if 'cuda' in str(device):
-        test_descriptors = test_descriptors.cpu().numpy()
-        db_descriptors = db_descriptors.cpu().numpy()
 
     true_positives = 0
     angular_diffs = []

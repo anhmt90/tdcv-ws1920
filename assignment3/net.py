@@ -41,4 +41,5 @@ def load_ckp(checkpoint_fpath, model):
     # checkpoint = torch.load(checkpoint_fpath, map_location ='cpu') if (device.type == 'cpu') else torch.load(checkpoint_fpath)
     checkpoint = torch.load(checkpoint_fpath, map_location = str(device))
     model.load_state_dict(checkpoint['state_dict'])
+    model.to(device)
     return model, checkpoint['epoch']

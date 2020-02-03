@@ -5,9 +5,9 @@ import torch
 
 def convert_to_numpy_array(tensor1, tensor2):
     if torch.is_tensor(tensor1):
-        tensor1 = tensor1.numpy()
+        tensor1 = tensor1.cpu().numpy()
     if torch.is_tensor(tensor2):
-        tensor2 = tensor2.numpy()
+        tensor2 = tensor2.cpu().numpy()
     return tensor1, tensor2
 
 def knn_matching_search(test_descriptors, db_descriptors):
