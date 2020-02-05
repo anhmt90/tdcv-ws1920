@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 import utils
 
 DEBUG = False
-DEBUG__NUM_EACH_CLASS = 20
+DEBUG__NUM_EACH_CLASS = 10
 
 def sorted_alphanumeric(data):
     convert = lambda text: int(text) if text.isdigit() else text.lower()

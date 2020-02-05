@@ -9,7 +9,6 @@ from matplotlib import pyplot as plt
 import cv2
 
 
-
 train_mean = [0.20495705, 0.17493474, 0.1553751 ]
 train_std = [0.26818034, 0.22731194, 0.21109529]
 
@@ -63,6 +62,8 @@ class DataGenerator():
 
         classes = ['ape', 'benchvise', 'cam', 'cat', 'duck']
         self.test_labels = [classes[t] for t in self.test_dataset.targets]
+        self.test_images = torch.cat(
+        [test_input['image'] for j, test_input in enumerate(self.test_loader)])
 
 
     def make_batch(self, anchor):

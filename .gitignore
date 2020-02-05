@@ -8,3 +8,4 @@ local_only/
 **/play-ground.py
 **/.idea/
 assignment3/runs/*
+.ipynb_checkpoints/

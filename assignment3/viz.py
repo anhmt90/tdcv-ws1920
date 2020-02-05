@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import torch
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 
 import utils
 import net
@@ -23,7 +25,7 @@ def visualize_triplet(anchor, puller, pusher, num_display=4):
     fig.show()
 
 
-def make_histogram(data):
+def get_histogram_bins(data):
     bins = np.zeros(4)
     for angular_diff in data:
         assert 0 <= angular_diff and angular_diff <= 180, "Angualar difference out of range. (angular_diff = {.3f})".format(
@@ -40,31 +42,16 @@ def make_histogram(data):
     return bins
 
 
-def visualize_histogram(angular_diffs):
-    bins = make_histogram(angular_diffs)
-
+def get_histogram_plot(bins):
     bin_labels = ('<10', '<20', '<40', '<180')
     y_pos = np.arange(len(bin_labels))
+
+    fig = plt.figure()
     plt.bar(y_pos, bins.tolist(), align='center', alpha=0.5)
     plt.xticks(y_pos, bin_labels)
     for i in range(4):
         plt.text(y_pos[i], bins[i], str(bins[i]))
-    plt.show()
-
-
-def store_embeddings(writer, embeddings, metadata, label_img=False):
-    '''
-    :param writer: instance of SummaryWriter()
-    :param embeddings: the tesnsor to visualized by PCA and t-SNE
-    :param metadata: labels of the embeddings e.g. ape, benchvise, cat, cam, duck
-    :param label_img: if True, the RGB images will be plotted in place of points i.e. cloud images instead of cloud points
-    :return:
-    '''
-    assert torch.is_tensor(embeddings), "'descriptors' is not a Tensor object"
-    test_images = torch.cat(
-        [test_input['image'] for j, test_input in enumerate(dg_.test_loader)]) if label_img else None
-
-    writer.add_embedding(embeddings, metadata=metadata, label_img=test_images, tag='test_descriptors')
+    return fig
 
 
 def compute_histogram(model, dg, count_only=False, test_descriptors=None):
@@ -72,22 +59,47 @@ def compute_histogram(model, dg, count_only=False, test_descriptors=None):
         test_descriptors = net.compute_descriptor(model, dg.test_loader)
     db_descriptors = net.compute_descriptor(model, dg.db_loader)
 
-
-    true_positives = 0
     angular_diffs = []
     for match in utils.knn_matching_search(test_descriptors, db_descriptors):
         m = dg.test_dataset.__getitem__(match.queryIdx)
         n = dg.db_dataset.__getitem__(match.trainIdx)
         if m['target'] == n['target']:
-            if count_only:
-                true_positives += 1
-            else:
-                angular_diffs.append(utils.compute_angle(m['pose'], n['pose']))
+            angular_diffs.append(utils.compute_angle(m['pose'], n['pose']))
 
+    bins = get_histogram_bins(angular_diffs)
     if count_only:
-        return  true_positives
-    visualize_histogram(angular_diffs)
-    return angular_diffs
+        return bins
+
+    fig = get_histogram_plot(bins)
+    return bins, fig
+
+
+def plot_embedding(embedding, title, dg):
+    colors = {'ape': 'green', 'benchvise': 'blue', 'cam': 'orange', 'cat': 'purple', 'duck': 'red'}
+    fig, ax = plt.subplots()
+    start_idx = 0
+    test_labels_arr = np.array(dg.test_labels)
+    classes = np.unique(dg.test_labels)
+    for target in classes:
+        end_idx = start_idx + len(test_labels_arr[test_labels_arr == target])
+        sub_reps = embedding[start_idx:end_idx, :]
+        ax.scatter(sub_reps[:, 0], sub_reps[:, 1], c=colors[target], label=target, alpha=0.3, edgecolors='none')
+        start_idx = end_idx
+    ax.legend()
+    ax.set_title(title)
+    return fig
+
+
+def get_pca_plot(descriptors, dg):
+    pca = PCA(n_components=2)
+    embedding = pca.fit_transform(descriptors)
+    return plot_embedding(embedding, title="PCA Embedding of Test Database", dg=dg)
+
+
+def get_tsne_plot(descriptors, dg):
+    tsne = TSNE(n_components=2)
+    embedding = tsne.fit_transform(descriptors)
+    return plot_embedding(embedding, title='t-SNE Embedding of Coarse Database', dg=dg)
 
 
 def compute_confusion_matrix(preds, trues):
@@ -102,7 +114,8 @@ def compute_confusion_matrix(preds, trues):
         confusion_mat[trues[i]][preds[i]] += 1
     return confusion_mat
 
-def draw_confusion_heatmap(model, dg, test_descriptors=None):
+
+def get_confusion_heatmap(model, dg, test_descriptors=None):
     if test_descriptors is None:
         test_descriptors = net.compute_descriptor(model, dg.test_loader)
     db_descriptors = net.compute_descriptor(model, dg.db_loader)
@@ -117,8 +130,18 @@ def draw_confusion_heatmap(model, dg, test_descriptors=None):
     preds = np.array(dg.test_dataset.targets)[test_idx]
     trues = np.array(dg.db_dataset.targets)[db_idx]
     cm = compute_confusion_matrix(preds, trues)
-    sns.heatmap(cm, annot=True, fmt='d') #https://likegeeks.com/seaborn-heatmap-tutorial/
+
+    fig = plt.figure()
+    sns.heatmap(cm, annot=True, fmt='d')  # https://likegeeks.com/seaborn-heatmap-tutorial/
     plt.ylabel('True Label (DB)')
     plt.xlabel('Predicted Label (TEST)')
     plt.title('Confusion Matrix')
-    plt.show()
+    return fig
+
+
+def get_all_plots(model, dg, descriptors):
+    _, hist_fig = compute_histogram(model, dg, test_descriptors=descriptors)
+    pca_fig = get_pca_plot(descriptors.cpu().numpy(), dg)
+    tsne_fig = get_tsne_plot(descriptors.cpu().numpy(), dg)
+    confusion_fig = get_confusion_heatmap(model, dg, descriptors)
+    return hist_fig, pca_fig, tsne_fig, confusion_fig
